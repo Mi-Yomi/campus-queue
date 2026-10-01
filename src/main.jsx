@@ -27,6 +27,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { request, storage, visitorStorageAvailable, cloudEnabled } from "./api";
+import { queueBase } from "./queue-links.mjs";
 import {
   Brand,
   Button,
@@ -52,6 +53,7 @@ import "@fontsource/golos-text/latin-700.css";
 import "./styles.css";
 
 function savedBase() {
+  if (cloudEnabled) return queueBase(location.href, null, true);
   try {
     const url = new URL(storage.get("campus.link.v1"));
     if (
@@ -263,7 +265,7 @@ function Home() {
           <h2>Отсканируйте свежий QR</h2>
           <p>
             Код можно попросить у преподавателя или у одногруппника, который уже
-            стоит в очереди. Он обновляется каждые 10 секунд.
+            стоит в очереди. Он обновляется каждые 20 секунд.
           </p>
         </div>
       </section>
@@ -658,7 +660,7 @@ function Visitor({ queueId, invite, notify }) {
                       камерой.
                     </p>
                     <span className="small muted">
-                      Коды действуют 10 секунд. Уже выданные талоны не истекают
+                      Коды действуют 20 секунд. Уже выданные талоны не истекают
                       вместе с QR.
                     </span>
                   </div>
@@ -1337,7 +1339,7 @@ function Admin({ notify, onLogout }) {
                   <div className="order-note">
                     <ShieldCheck size={20} />
                     <div>
-                      <strong>QR меняется каждые 10 секунд</strong>
+                      <strong>QR меняется каждые 20 секунд</strong>
                       <p>
                         Выданные талоны продолжают работать независимо от смены
                         кода.
@@ -1597,11 +1599,12 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
         <h2>Адрес сайта для телефонов</h2>
         <p className="muted">
           Приглашение добавляется в QR автоматически. Секретная ссылка меняется
-          каждые 10 секунд.
+          каждые 20 секунд.
         </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (cloudEnabled) return;
             try {
               const url = new URL(draft);
               if (
@@ -1625,6 +1628,7 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
             Адрес сайта
             <input
               type="url"
+              readOnly={cloudEnabled}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               required
@@ -1649,7 +1653,9 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
               ))}
             </div>
           )}
-          <Button>Сохранить адрес</Button>
+          {cloudEnabled ? (
+            <p className="small muted">Адрес очереди закреплён за этим сайтом. Все QR ведут в этот проект.</p>
+          ) : <Button>Сохранить адрес</Button>}
         </form>
         <ErrorBox error={error} />
         <div className="qr-instructions">

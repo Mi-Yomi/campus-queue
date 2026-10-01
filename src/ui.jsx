@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { ListOrdered, LoaderCircle, Users, WifiOff, X } from "lucide-react";
 import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
+import { queueBase } from "./queue-links.mjs";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -313,7 +314,7 @@ export function LiveQR({
     ? Math.max(0, Math.ceil((value.deadline - tick) / 1000))
     : 0;
   const url = value
-    ? `${baseUrl.split("#")[0]}#/q/${encodeURIComponent(queueId)}?invite=${encodeURIComponent(value.invite)}`
+    ? `${queueBase(location.href, baseUrl, cloudEnabled)}#/q/${encodeURIComponent(queueId)}?invite=${encodeURIComponent(value.invite)}`
     : "";
   return (
     <div className="live-qr">
@@ -340,10 +341,10 @@ export function LiveQR({
               ? "Обновляем код…"
               : "Новые записи недоступны"}
         </span>
-        <span>10 секунд</span>
+        <span>{Math.round((value?.intervalMs || 20000) / 1000)} секунд</span>
       </div>
       <div className="qr-progress">
-        <i style={{ width: `${remaining * 10}%` }} />
+        <i style={{ width: `${Math.min(100, remaining * 100000 / (value?.intervalMs || 20000))}%` }} />
       </div>
       {error && <p className="field-error">{error.message}</p>}
       <p className="small muted">

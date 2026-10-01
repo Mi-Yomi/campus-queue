@@ -20,7 +20,7 @@ export class AppError extends Error {
 const fail = (status, message) => {
   throw new AppError(status, message);
 };
-export const QR_INTERVAL = 10_000;
+export const QR_INTERVAL = 20_000;
 export const GRANT_TTL = 120_000;
 export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   if (filename !== ":memory:")
@@ -346,7 +346,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       kind = "ticket";
       issuer = row.id;
     }
-    const iat = Math.floor(now() / QR_INTERVAL) * QR_INTERVAL,
+    const iat = now(),
       exp = iat + QR_INTERVAL;
     const payload = Buffer.from(
       JSON.stringify({ v: 1, q: id, g: q.generation, kind, issuer, iat, exp }),

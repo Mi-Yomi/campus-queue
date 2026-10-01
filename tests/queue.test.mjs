@@ -171,10 +171,12 @@ test("teacher cannot read or change another queue or manage accounts", async (t)
   );
   assert.equal((await f.call(`/admin/queues/${a.q}`)).status, 401);
 });
-test("QR expires at exactly 10 seconds; tampering and cross-queue reuse fail", async (t) => {
+test("QR expires at exactly 20 seconds; tampering and cross-queue reuse fail", async (t) => {
   const f = await fixture(t),
     a = await f.teacher("teacher_a"),
     code = await f.invite();
+  assert.equal(code.intervalMs, 20_000);
+  assert.equal(code.expiresAt - code.serverNow, 20_000);
   f.clock.value = code.expiresAt - 1;
   assert.equal((await f.redeem("legacy", visitor(), code.invite)).status, 200);
   f.clock.value = code.expiresAt;
@@ -512,7 +514,7 @@ test("restart preserves accounts, grants, tickets and signing key, but not expir
   const grant = (await f.redeem("legacy", token, qr.invite)).body.admission;
   const a = await f.teacher("teacher_a");
   await f.close();
-  clock.value += 12_000;
+  clock.value = qr.expiresAt + 1;
   const g = await fixture(t, { databasePath: path, clock });
   assert.equal((await g.redeem("legacy", visitor(), qr.invite)).status, 410);
   assert.equal((await g.call("/admin/me", { admin: a.token })).status, 200);
