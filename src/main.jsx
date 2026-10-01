@@ -26,7 +26,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { request, storage, visitorStorageAvailable } from "./api";
+import { request, storage, visitorStorageAvailable, cloudEnabled } from "./api";
 import {
   Brand,
   Button,
@@ -190,7 +190,7 @@ function Shell({
           <span>по порядку · очередь на пару</span>
           <span>
             {data?.serverTime
-              ? `Обновлено в ${time(data.serverTime)} · каждые 3 сек`
+              ? `Обновлено в ${time(data.serverTime)} · ${cloudEnabled ? "в реальном времени" : "каждые 3 сек"}`
               : "Ваши талоны сохраняются в этом браузере"}
           </span>
         </footer>

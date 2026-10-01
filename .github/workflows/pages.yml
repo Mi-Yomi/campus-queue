@@ -25,14 +25,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - name: Validate API URL
+      - name: Validate backend configuration
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
-        run: node -e "const value = process.env.VITE_API_URL; if (!value) { console.log('Publishing launch page; backend is not configured yet.'); process.exit(0); } const u = new URL(value); if (u.protocol !== 'https:' || u.pathname !== '/' || u.search || u.hash || u.username || u.password) throw new Error('VITE_API_URL must be an HTTPS origin, without /api or credentials')"
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/validate-cloud-env.mjs
       - run: npm run build
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
-          VITE_DEPLOY_PENDING: ${{ vars.VITE_API_URL == '' && 'true' || 'false' }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_DEPLOY_PENDING: ${{ vars.VITE_API_URL == '' && vars.VITE_SUPABASE_URL == '' && 'true' || 'false' }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

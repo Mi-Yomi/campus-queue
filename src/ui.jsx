@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { ListOrdered, LoaderCircle, Users, WifiOff, X } from "lucide-react";
-import { request } from "./api";
+import { request, cloudEnabled } from "./api";
+import { applyLiveSnapshot } from "./live-state.mjs";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -110,6 +111,7 @@ export function useResource(
   const [state, setState] = useState({ key: null, data: null, error: null });
   const controller = useRef(null),
     keyRef = useRef(path);
+  const latestLive = useRef(null);
   keyRef.current = path;
   const refresh = useCallback(async () => {
     if (!path || !enabled) return null;
@@ -123,7 +125,11 @@ export function useResource(
     try {
       const data = await request(path, { admin, signal: current.signal });
       if (!current.signal.aborted && keyRef.current === path)
-        setState({ key: path, data, error: null });
+        setState((old) => {
+          if (old.key === path && old.data?.revision > data.revision) return old;
+          return { key: path, data: !admin && latestLive.current?.key === path
+            ? applyLiveSnapshot(data, latestLive.current.snapshot) : data, error: null };
+        });
       return data;
     } catch (error) {
       if (
@@ -145,21 +151,50 @@ export function useResource(
   useEffect(() => {
     if (!enabled || !path) return;
     let active = true,
-      timer;
+      timer, unsubscribe, eventTimer, connected = false;
+    const queueId = path.match(/^\/(?:admin\/)?queues\/([^/]+)$/)?.[1];
     const tick = async () => {
-      await refresh();
-      if (active && poll) timer = setTimeout(tick, poll);
+      if (!cloudEnabled || document.visibilityState === "visible") await refresh();
+      const interval = cloudEnabled ? (queueId && !connected ? 15000 : 180000) : poll;
+      if (active && poll) timer = setTimeout(tick, interval);
     };
     tick();
+    if (cloudEnabled && queueId) import("./realtime").then(({ subscribeQueue }) => {
+      if (!active) return;
+      unsubscribe = subscribeQueue(queueId, (snapshot) => {
+        if (!active || document.visibilityState !== "visible") return;
+        if (admin) {
+          clearTimeout(eventTimer);
+          eventTimer = setTimeout(refresh, 150);
+        } else {
+          latestLive.current = { key: path, snapshot };
+          setState(s => s.key === path ? { ...s, data: applyLiveSnapshot(s.data, snapshot), error: null } : s);
+        }
+      }, (status) => {
+        if (!active) return;
+        connected = status === "SUBSCRIBED";
+        // Refresh after subscribing/reconnecting to fill any missed-event gap.
+        clearTimeout(timer);
+        if (connected) tick();
+        else if (poll) timer = setTimeout(tick, 15000);
+      });
+    }).catch(() => { connected = false; });
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
+    const onStorage = (e) => {
+      if (e.key === "campus.changed.v1" && document.visibilityState === "visible") refresh();
+    };
+    if (cloudEnabled) window.addEventListener("storage", onStorage);
     return () => {
       active = false;
       clearTimeout(timer);
+      clearTimeout(eventTimer);
+      unsubscribe?.();
       controller.current?.abort();
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("storage", onStorage);
     };
   }, [refresh, poll, path, enabled]);
   return {
@@ -220,6 +255,7 @@ export function LiveQR({
       controller;
     const load = async () => {
       clearTimeout(timer);
+      if (document.visibilityState !== "visible") return;
       controller?.abort();
       controller = new AbortController();
       const requestController = controller;
@@ -241,7 +277,8 @@ export function LiveQR({
           result.expiresAt - result.serverNow - (performance.now() - start);
         setValue({ ...result, deadline: performance.now() + remaining });
         setError(null);
-        timer = setTimeout(load, Math.max(100, remaining));
+        // Wait past server expiry; fetching early would return the same QR again.
+        timer = setTimeout(load, Math.max(250, result.expiresAt - result.serverNow + 100));
       } catch (e) {
         if (active && !requestController.signal.aborted) {
           setError(e);

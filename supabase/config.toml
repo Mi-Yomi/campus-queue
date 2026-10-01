@@ -1,0 +1,6 @@
+project_id = "campus-queue"
+
+[functions.queue-api]
+# Opaque teacher sessions and visitor capabilities are checked by the API.
+verify_jwt = false
+entrypoint = "./functions/queue-api/index.ts"

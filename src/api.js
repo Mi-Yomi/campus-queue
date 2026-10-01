@@ -1,4 +1,9 @@
-const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+export const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
+export const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+export const cloudEnabled = !!(supabaseUrl && publishableKey);
+const base = cloudEnabled
+  ? `${supabaseUrl}/functions/v1/queue-api`
+  : (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
 export const storage = {
   get(key, session = false) {
     try {
@@ -39,10 +44,14 @@ export async function request(
       "Браузер не разрешает сохранить талон. Разрешите хранение данных сайта и повторите запись.",
     );
   const headers = { "X-Visitor-Token": visitorToken };
+  if (cloudEnabled) headers.apikey = publishableKey;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (displayToken) headers["X-Display-Token"] = displayToken;
-  if (admin)
-    headers.Authorization = `Bearer ${storage.get("campus.admin.v1", true) || ""}`;
+  if (admin) {
+    const token = storage.get("campus.admin.v1", true) || "";
+    if (cloudEnabled) headers["X-Queue-Session"] = token;
+    else headers.Authorization = `Bearer ${token}`;
+  }
   let response;
   try {
     response = await fetch(`${base}/api${path}`, {
@@ -66,5 +75,7 @@ export async function request(
     error.status = response.status;
     throw error;
   }
+  if (method !== "GET" && cloudEnabled)
+    storage.set("campus.changed.v1", `${Date.now()}:${path}`);
   return result;
 }
