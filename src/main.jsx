@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { request, storage, visitorStorageAvailable, cloudEnabled } from "./api";
 import { queueBase } from "./queue-links.mjs";
+import { estimateMinutes, durationLabel, serviceSeconds } from "./queue-analytics.mjs";
 import {
   Brand,
   Button,
@@ -495,7 +496,7 @@ function Visitor({ queueId, invite, notify }) {
                       : "Вы в очереди. Всё готово."}
                   </h3>
                   <p>
-                    {mine.name} · {mine.studentGroup}
+                    {mine.name}
                   </p>
                 </div>
                 <div className="ticket-stats">
@@ -510,7 +511,9 @@ function Visitor({ queueId, invite, notify }) {
                     <strong>
                       {mine.status === "called"
                         ? "Сейчас"
-                        : `~ ${mine.estimatedMinutes} мин`}
+                        : mine.ahead === 0 ? "Вы следующий"
+                          : mine.estimatedMinutes == null ? "Пока нет данных"
+                          : `~ ${mine.estimatedMinutes} мин`}
                     </strong>
                   </div>
                 </div>
@@ -598,7 +601,6 @@ function Visitor({ queueId, invite, notify }) {
                         e.preventDefault();
                         act("/join", {
                           name: draft.name || "",
-                          studentGroup: draft.studentGroup || "",
                           grantId: data.admission.id,
                         });
                       }}
@@ -615,23 +617,10 @@ function Visitor({ queueId, invite, notify }) {
                           onChange={(e) => change("name", e.target.value)}
                         />
                       </label>
-                      <label>
-                        Учебная группа
-                        <input
-                          name="studentGroup"
-                          required
-                          maxLength={30}
-                          placeholder="Например, ИС-23-1"
-                          value={draft.studentGroup || ""}
-                          onChange={(e) =>
-                            change("studentGroup", e.target.value)
-                          }
-                        />
-                      </label>
                       <div className="form-note">
                         <ShieldCheck size={18} />
                         <span>
-                          Имя и группу увидит только преподаватель. На табло —
+                          Имя увидит только преподаватель. На табло —
                           только номер.
                         </span>
                       </div>
@@ -692,12 +681,16 @@ function Visitor({ queueId, invite, notify }) {
                 </div>
                 <div>
                   <strong>
-                    {data.settings.avgMinutes}
-                    <small> мин</small>
+                    {durationLabel(data.analytics?.averageSeconds)}
                   </strong>
-                  <span>на студента, примерно</span>
+                  <span>{data.analytics?.sampleCount ? "средний приём" : "после первого приёма"}</span>
                 </div>
               </div>
+              <p className="small muted">
+                {data.analytics?.sampleCount
+                  ? `Завершённых приёмов: ${data.analytics.sampleCount}. Оценка обновляется после каждого студента.`
+                  : "Оценка появится, когда преподаватель завершит первый приём."}
+              </p>
             </section>
             <section className="panel how-it-works">
               <h3>Одногруппник опоздал?</h3>
@@ -1117,14 +1110,19 @@ function Admin({ notify, onLogout }) {
                   icon={Clock3}
                   label="Ожидание в конце очереди"
                   value={
-                    (data.stats.waiting + (data.current ? 1 : 0)) *
-                    data.settings.avgMinutes
+                    estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) ?? "—"
                   }
-                  unit="мин"
-                  detail="приблизительная оценка"
+                  unit={estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) == null ? "" : "мин"}
+                  detail={data.analytics?.sampleCount ? "по фактическому времени приёма" : "оценка после первого приёма"}
                   color="orange"
                 />
               </div>
+              <p className="small muted">
+                {data.analytics?.sampleCount
+                  ? `Средний приём: ${durationLabel(data.analytics.averageSeconds)} · Завершённых приёмов: ${data.analytics.sampleCount}.`
+                  : "Пока нет завершённых приёмов — среднее время ещё неизвестно."}
+                {" "}Время считается от вызова до «Завершить приём». Пропуски и отмены не учитываются.
+              </p>
               <div className="admin-grid">
                 <div>
                   <section className="admin-current">
@@ -1142,7 +1140,7 @@ function Admin({ notify, onLogout }) {
                         <h2>{data.current?.name || "Готовы принимать?"}</h2>
                         <p>
                           {data.current
-                            ? `${data.current.studentGroup} · вызван в ${time(data.current.calledAt)}`
+                            ? `Вызван в ${time(data.current.calledAt)}`
                             : data.settings.title}
                         </p>
                       </div>
@@ -1248,9 +1246,7 @@ function Admin({ notify, onLogout }) {
                                 </td>
                                 <td>
                                   <strong>{t.name}</strong>
-                                  <span className="student-group">
-                                    {t.studentGroup}
-                                  </span>
+                                  {t.status === "done" && <span className="student-group">Приём: {durationLabel(serviceSeconds(t))}</span>}
                                 </td>
                                 <td className="muted">{time(t.createdAt)}</td>
                                 <td>
@@ -1472,7 +1468,6 @@ function Settings({ data, act, disabled, startNew }) {
               {
                 title: f.get("title"),
                 room: f.get("room"),
-                avgMinutes: Number(f.get("avgMinutes")),
                 maxQueue: Number(f.get("maxQueue")),
                 status: f.get("status"),
               },
@@ -1500,17 +1495,6 @@ function Settings({ data, act, disabled, startNew }) {
             />
           </label>
           <div className="form-columns">
-            <label>
-              Минут на студента
-              <input
-                name="avgMinutes"
-                type="number"
-                min="1"
-                max="120"
-                defaultValue={data.settings.avgMinutes}
-                required
-              />
-            </label>
             <label>
               Максимум в очереди
               <input
@@ -2010,7 +1994,7 @@ function LaunchPage() {
           <h2>Меньше ожидания.<br />Больше порядка.</h2>
           <ol>
             <li><QrCode size={23} /><div><strong>Открой очередь по QR</strong><p>Попроси код у преподавателя или одногруппника.</p></div></li>
-            <li><Ticket size={23} /><div><strong>Получи свой номер</strong><p>Укажи имя и группу — и ты в очереди.</p></div></li>
+            <li><Ticket size={23} /><div><strong>Получи свой номер</strong><p>Укажи имя — и ты в очереди.</p></div></li>
             <li><Users size={23} /><div><strong>Подойди, когда вызовут</strong><p>Следи за своим местом на телефоне.</p></div></li>
           </ol>
         </section>

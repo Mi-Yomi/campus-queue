@@ -93,7 +93,6 @@ async function fixture(
       token,
       body: {
         name: "Тестовый студент",
-        studentGroup: "ИС-23",
         grantId: grant.body.admission?.id,
       },
     });
@@ -127,6 +126,46 @@ async function fixture(
     close,
   };
 }
+test("name-only enrollment and measured service averages exclude gaps, skips and other classes", async (t) => {
+  const f = await fixture(t), people = Array.from({ length: 5 }, visitor);
+  for (const token of people) {
+    const enrolled = await f.enroll("legacy", token);
+    assert.equal(enrolled.status, 200);
+    assert.equal(enrolled.body.mine.studentGroup, "");
+  }
+  const snapshot = async () => (await f.call("/queues/legacy", { token: people[4] })).body;
+  let s = await snapshot();
+  assert.equal(s.analytics.sampleCount, 0);
+  assert.equal(s.analytics.averageSeconds, null);
+  assert.equal(s.mine.estimatedMinutes, null);
+  const finishAfter = async (minutes, status = "done") => {
+    const next = await f.call("/admin/queues/legacy/next", { admin: f.owner, method: "POST" });
+    f.clock.value += minutes * 60000;
+    return f.call(`/admin/queues/legacy/tickets/${next.body.current.id}/finish`, { admin: f.owner, method: "POST", body: { status } });
+  };
+  await finishAfter(7);
+  assert.equal((await snapshot()).analytics.averageSeconds, 420);
+  f.clock.value += 30 * 60000; // A break between students is not service time.
+  await finishAfter(5);
+  s = await snapshot();
+  assert.deepEqual(s.analytics, { sampleCount: 2, totalSeconds: 720, averageSeconds: 360 });
+  assert.equal(s.mine.ahead, 2);
+  assert.equal(s.mine.estimatedMinutes, 12);
+  await finishAfter(40, "skipped");
+  s = await snapshot();
+  assert.equal(s.analytics.averageSeconds, 360);
+  assert.equal(s.analytics.sampleCount, 2);
+  await f.call("/queues/legacy/leave", { token: people[3], method: "POST" });
+  assert.equal((await snapshot()).mine.estimatedMinutes, 0);
+  const other = await f.teacher("analytics_other");
+  assert.equal((await f.enroll(other.q)).body.analytics.sampleCount, 0);
+  await f.call("/admin/queues/legacy/settings", { admin: f.owner, method: "PATCH", body: { avgMinutes: 99 } });
+  assert.equal((await snapshot()).analytics.averageSeconds, 360);
+  await f.call("/admin/queues/legacy/reset", { admin: f.owner, method: "POST", body: { generation: 1, confirmation: "НОВАЯ ПАРА" } });
+  s = await snapshot();
+  assert.equal(s.analytics.sampleCount, 0);
+  assert.equal(s.analytics.averageSeconds, null);
+});
 test("teachers have separate queues, tickets and simultaneous service", async (t) => {
   const f = await fixture(t),
     a = await f.teacher("teacher_a"),

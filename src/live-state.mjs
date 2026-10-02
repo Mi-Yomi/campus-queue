@@ -1,3 +1,4 @@
+import { estimateMinutes } from "./queue-analytics.mjs";
 // Realtime carries numbers and statuses only. Personal data comes from the API.
 export function applyLiveSnapshot(data, live) {
   if (!data || !live || data.settings.id !== live.settings.id || live.revision <= data.revision) return data;
@@ -10,7 +11,7 @@ export function applyLiveSnapshot(data, live) {
     const position = current?.status === "waiting" ? waiting.findIndex(t => t.seq === mine.seq) + 1 : 0;
     const ahead = position ? position - 1 + Number(!!live.current) : 0;
     mine = { ...mine, ...current, previousSession, position, ahead,
-      estimatedMinutes: ahead * live.settings.avgMinutes,
+      estimatedMinutes: estimateMinutes(ahead, live.analytics),
       ...(previousSession && ["waiting", "called"].includes(mine.status) ? { status: "cancelled" } : {}),
     };
   }

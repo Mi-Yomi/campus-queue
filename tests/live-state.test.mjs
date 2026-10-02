@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { applyLiveSnapshot } from "../src/live-state.mjs";
-const settings = { id: "q", generation: 1, avgMinutes: 5, status: "open", teacherActive: true };
+const settings = { id: "q", generation: 1, avgMinutes: 99, status: "open", teacherActive: true };
 const data = () => ({ settings, revision: 1, mine: { id: "private", name: "Student", generation: 1, seq: 2, status: "waiting" }, admission: { id: "grant", generation: 1 } });
-const live = (extra = {}) => ({ settings, revision: 2, current: { number: "A-001" }, states: [{ seq: 1, status: "called" }, { seq: 2, status: "waiting" }], ...extra });
+const live = (extra = {}) => ({ settings, revision: 2, analytics: { sampleCount: 1, averageSeconds: 300 }, current: { number: "A-001" }, states: [{ seq: 1, status: "called" }, { seq: 2, status: "waiting" }], ...extra });
 test("public updates preserve private identity and calculate position", () => {
  const next = applyLiveSnapshot(data(), live());
  assert.equal(next.mine.id, "private"); assert.equal(next.mine.name, "Student");
@@ -16,6 +16,12 @@ test("called and completed tickets update without private API reads", () => {
  assert.equal(called.mine.status, "called"); assert.equal(called.mine.position, 0);
  const done = applyLiveSnapshot(called, live({ revision: 3, states: [{ seq: 2, status: "done" }] }));
  assert.equal(done.mine.status, "done"); assert.equal(done.canShare, false);
+});
+test("Realtime uses measured averages and never the legacy manual time", () => {
+ const pending = applyLiveSnapshot(data(), live({ analytics: { sampleCount: 0, averageSeconds: null } }));
+ assert.equal(pending.mine.estimatedMinutes, null);
+ const measured = applyLiveSnapshot(pending, live({ revision: 3, analytics: { sampleCount: 2, averageSeconds: 360 } }));
+ assert.equal(measured.mine.estimatedMinutes, 6);
 });
 test("new class cancels old active ticket and clears its admission", () => {
  const next = applyLiveSnapshot(data(), live({ settings: { ...settings, generation: 2 }, states: [{ seq: 2, status: "called" }] }));

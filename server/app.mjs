@@ -183,7 +183,7 @@ export function createApp(options = {}) {
       req.params.queueId,
       visitor(req),
       text(req.body?.name, "Имя", 60),
-      text(req.body?.studentGroup, "Группа", 30),
+      "",
       req.body?.grantId,
     );
     res.json(store.snapshot(req.params.queueId, visitor(req)));

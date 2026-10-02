@@ -108,7 +108,10 @@ Deno.serve(async (req: Request) => {
       if ("maxQueue" in body) integer(body.maxQueue, 1, 500, "Лимит");
     } else if (/^\/queues\/[^/]+\/join$/.test(path) && req.method === "POST") {
       fields(body, ["name", "studentGroup", "grantId"]);
-      body.name = text(body.name, "Имя", 60); body.studentGroup = text(body.studentGroup, "Группа", 30);
+      body.name = text(body.name, "Имя", 60);
+      // Keep the legacy field compatible with already-open clients, but do not
+      // require or collect a group for new enrollments.
+      body.studentGroup = "";
       body.grantId = text(body.grantId, "Допуск", 80);
     } else if (/^\/queues\/[^/]+\/redeem$/.test(path) && req.method === "POST") {
       fields(body, ["invite"]); body.invite = text(body.invite, "QR", 2000);

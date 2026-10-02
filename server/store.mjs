@@ -8,6 +8,7 @@ import {
   randomUUID,
 } from "node:crypto";
 import { newToken, newPassword, hashPassword } from "./auth.mjs";
+import { serviceAnalytics, estimateMinutes } from "../src/queue-analytics.mjs";
 
 export const digest = (value) =>
   createHash("sha256").update(value).digest("hex");
@@ -221,6 +222,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       .all(id, q.generation);
     const waiting = tickets.filter((t) => t.status === "waiting"),
       current = tickets.find((t) => t.status === "called");
+    const analytics = serviceAnalytics(tickets);
     const hash = visitorToken ? digest(visitorToken) : "";
     const mine = clean(
       hash
@@ -235,7 +237,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       const index = waiting.findIndex((t) => t.id === mine.id);
       mine.position = index < 0 ? 0 : index + 1;
       mine.ahead = index < 0 ? 0 : index + (current ? 1 : 0);
-      mine.estimatedMinutes = mine.ahead * q.avgMinutes;
+      mine.estimatedMinutes = estimateMinutes(mine.ahead, analytics);
       mine.previousSession = mine.generation !== q.generation;
     }
     const admission = hash
@@ -247,6 +249,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       : null;
     return {
       settings: q,
+      analytics,
       serverTime: stamp(),
       serverNow: now(),
       mine,
