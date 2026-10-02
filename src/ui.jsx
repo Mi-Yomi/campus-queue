@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { ListOrdered, LoaderCircle, Users, WifiOff, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ListOrdered, LoaderCircle, Maximize, Users, WifiOff, X } from "lucide-react";
 import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
 import { queueBase } from "./queue-links.mjs";
+import { roundedQrSvg } from "./qr-art.mjs";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -204,21 +206,27 @@ export function useResource(
   };
 }
 export function QR({ url, large = false }) {
-  const [image, setImage] = useState("");
+  const [image, setImage] = useState(null), [availableWidth, setAvailableWidth] = useState(0);
+  const frame = useRef(null);
+  useEffect(() => {
+    const element = frame.current;
+    const resize = () => setAvailableWidth(element.clientWidth);
+    resize();
+    if (!window.ResizeObserver) {
+      window.addEventListener("resize", resize);
+      return () => window.removeEventListener("resize", resize);
+    }
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     let alive = true;
-    setImage("");
     import("qrcode")
-      .then((m) =>
-        m.default.toDataURL(url, {
-          width: 720,
-          margin: 4,
-          errorCorrectionLevel: "M",
-          color: { dark: "#22243a", light: "#ffffff" },
-        }),
-      )
-      .then((src) => {
-        if (alive) setImage(src);
+      .then((m) => {
+        const matrix = m.default.create(url, { errorCorrectionLevel: "M" }).modules;
+        const src = roundedQrSvg(matrix);
+        if (alive) setImage({ url, modules: matrix.size + 8, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(src)}` });
       })
       .catch(() => {});
     return () => {
@@ -226,9 +234,11 @@ export function QR({ url, large = false }) {
     };
   }, [url]);
   return (
-    <div className={`qr ${large ? "large" : ""}`}>
-      {image ? (
-        <img src={image} alt="Свежий QR-код для записи в очередь" />
+    <div ref={frame} className={`qr ${large ? "large" : ""}`}>
+      {image?.url === url ? (
+        <img src={image.src} style={{ width: availableWidth >= image.modules
+          ? Math.floor(availableWidth / image.modules) * image.modules : "100%" }}
+          alt="Свежий QR-код для записи в очередь" />
       ) : (
         <LoaderCircle className="spin" />
       )}
@@ -242,10 +252,62 @@ export function LiveQR({
   admin = false,
   displayToken,
   enabled = true,
+  title = "Запись в очередь",
+  subtitle = "По порядку · очередь на пару",
+  initiallyExpanded = false,
+  onClose,
 }) {
   const [value, setValue] = useState(null),
     [error, setError] = useState(null),
-    [tick, setTick] = useState(performance.now());
+    [tick, setTick] = useState(performance.now()),
+    [expanded, setExpanded] = useState(initiallyExpanded);
+  const dialog = useRef(null), surface = useRef(null), nativeFullscreen = useRef(false);
+  const closeQR = useCallback(() => {
+    nativeFullscreen.current = false;
+    if (document.fullscreenElement === surface.current) document.exitFullscreen?.().catch(() => {});
+    dialog.current?.close();
+    setExpanded(false);
+    onClose?.();
+  }, [onClose]);
+  const openQR = () => {
+    dialog.current?.showModal();
+    setExpanded(true);
+    // Unsupported mobile browsers keep the same full-viewport dialog.
+    surface.current?.requestFullscreen?.().catch(() => {});
+  };
+  useEffect(() => {
+    if (initiallyExpanded) dialog.current?.showModal();
+  }, [initiallyExpanded]);
+  useEffect(() => {
+    const changed = () => {
+      if (document.fullscreenElement === surface.current) nativeFullscreen.current = true;
+      else if (nativeFullscreen.current) closeQR();
+    };
+    document.addEventListener("fullscreenchange", changed);
+    return () => document.removeEventListener("fullscreenchange", changed);
+  }, [closeQR]);
+  useEffect(() => {
+    if (!expanded) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    let wakeLock, disposed = false;
+    const keepAwake = async () => {
+      if (document.visibilityState !== "visible" || !navigator.wakeLock) return;
+      try {
+        const lock = await navigator.wakeLock.request("screen");
+        if (disposed) await lock.release();
+        else wakeLock = lock;
+      } catch { /* QR remains usable when the browser cannot keep the screen awake. */ }
+    };
+    keepAwake();
+    document.addEventListener("visibilitychange", keepAwake);
+    return () => {
+      disposed = true;
+      wakeLock?.release().catch(() => {});
+      document.removeEventListener("visibilitychange", keepAwake);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [expanded]);
   useEffect(() => {
     if (!enabled) {
       setValue(null);
@@ -277,6 +339,7 @@ export function LiveQR({
         const remaining =
           result.expiresAt - result.serverNow - (performance.now() - start);
         setValue({ ...result, deadline: performance.now() + remaining });
+        setTick(performance.now());
         setError(null);
         // Wait past server expiry; fetching early would return the same QR again.
         timer = setTimeout(load, Math.max(250, result.expiresAt - result.serverNow + 100));
@@ -316,8 +379,8 @@ export function LiveQR({
   const url = value
     ? `${queueBase(location.href, baseUrl, cloudEnabled)}#/q/${encodeURIComponent(queueId)}?invite=${encodeURIComponent(value.invite)}`
     : "";
-  return (
-    <div className="live-qr">
+  const code = (
+    <div className={`live-qr ${expanded ? "live-qr-expanded" : ""}`}>
       <div className="live-qr-image">
         {enabled && remaining > 0 && !error ? (
           <QR url={url} large />
@@ -348,8 +411,34 @@ export function LiveQR({
       </div>
       {error && <p className="field-error">{error.message}</p>}
       <p className="small muted">
-        Сканируйте камерой сейчас. Старая фотография не подойдёт.
+        Наведите камеру на код. Ваше место в очереди сохранится.
       </p>
     </div>
+  );
+  return (
+    <>
+      {!expanded && !initiallyExpanded && (
+        <>
+          {code}
+          <Button tone="secondary" className="wide qr-expand" onClick={openQR}>
+            <Maximize size={18} /> На весь экран
+          </Button>
+        </>
+      )}
+      {createPortal(
+        <dialog ref={dialog} className="qr-fullscreen" aria-label="QR-код на весь экран"
+          onCancel={(event) => { event.preventDefault(); closeQR(); }}>
+          <div className="qr-focus-surface" ref={surface}>
+            <header className="qr-focus-header">
+              <div><strong>{title}</strong><span>{subtitle}</span></div>
+              <button className="qr-close" onClick={closeQR} aria-label="Закрыть QR">
+                <X size={22} /><span>Закрыть</span>
+              </button>
+            </header>
+            {expanded && code}
+          </div>
+        </dialog>, document.body,
+      )}
+    </>
   );
 }

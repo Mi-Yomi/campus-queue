@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { request, storage, visitorStorageAvailable, cloudEnabled } from "./api";
 import { queueBase } from "./queue-links.mjs";
+import { studentDraft, savedStudentName, rememberStudentName } from "./student-profile.mjs";
 import { estimateMinutes, durationLabel, serviceSeconds } from "./queue-analytics.mjs";
 import {
   Brand,
@@ -67,13 +68,6 @@ function savedBase() {
     return url.href;
   } catch {
     return here();
-  }
-}
-function readDraft(id) {
-  try {
-    return JSON.parse(storage.get(`campus.draft.v2.${id}`) || "{}");
-  } catch {
-    return {};
   }
 }
 function Shell({
@@ -314,7 +308,7 @@ function Visitor({ queueId, invite, notify }) {
     [actionError, setActionError] = useState(""),
     [share, setShare] = useState(false),
     [confirm, setConfirm] = useState(false),
-    [draft, setDraft] = useState(() => readDraft(queueId)),
+    [draft, setDraft] = useState(() => studentDraft(storage, queueId)),
     [redeeming, setRedeeming] = useState(false);
   const mounted = useRef(true);
   useEffect(
@@ -330,6 +324,13 @@ function Visitor({ queueId, invite, notify }) {
     [nowTick, setNowTick] = useState(Date.now());
   const active = activeTicket(data?.mine),
     mine = data?.mine;
+  useEffect(() => {
+    // Existing students also get a reusable name without having to retype it.
+    if (mine?.name && savedStudentName(storage) === null) {
+      rememberStudentName(storage, mine.name);
+      setDraft((current) => current.name ? current : { name: mine.name });
+    }
+  }, [mine?.name]);
   const clock = useRef({ server: Date.now(), client: performance.now() });
   useEffect(() => {
     if (data)
@@ -434,6 +435,7 @@ function Visitor({ queueId, invite, notify }) {
     const next = { ...draft, [key]: value };
     setDraft(next);
     storage.set(`campus.draft.v2.${queueId}`, JSON.stringify(next));
+    if (key === "name") rememberStudentName(storage, value);
   };
   return (
     <Shell data={data} error={error}>
@@ -617,6 +619,10 @@ function Visitor({ queueId, invite, notify }) {
                           onChange={(e) => change("name", e.target.value)}
                         />
                       </label>
+                      <p className="name-memory-note">
+                        Запомним имя на этом устройстве для следующих пар.
+                        Его всегда можно изменить перед записью.
+                      </p>
                       <div className="form-note">
                         <ShieldCheck size={18} />
                         <span>
@@ -722,19 +728,15 @@ function Visitor({ queueId, invite, notify }) {
         </div>
       )}
       {share && data && (
-        <Dialog title="QR для одногруппника" onClose={() => setShare(false)}>
-          <p className="centered small muted">
-            {data.settings.title} · {data.settings.teacherName}
-          </p>
-          <LiveQR
-            queueId={queueId}
-            generation={data.settings.generation}
-            enabled={data.canShare && !error}
-          />
-          <p className="small muted centered">
-            Ваш талон {mine?.number} и место в очереди не изменятся.
-          </p>
-        </Dialog>
+        <LiveQR
+          queueId={queueId}
+          generation={data.settings.generation}
+          enabled={data.canShare && !error}
+          title={data.settings.title}
+          subtitle={data.settings.teacherName}
+          initiallyExpanded
+          onClose={() => setShare(false)}
+        />
       )}
       {confirm && (
         <Dialog title="Выйти из очереди?" onClose={() => setConfirm(false)}>
@@ -1281,6 +1283,8 @@ function Admin({ notify, onLogout }) {
                     <LiveQR
                       queueId={qid}
                       generation={data.settings.generation}
+                      title={data.settings.title}
+                      subtitle={data.settings.teacherName}
                       admin
                       baseUrl={baseUrl}
                       enabled={
@@ -1289,13 +1293,6 @@ function Admin({ notify, onLogout }) {
                         !error
                       }
                     />
-                    <Button
-                      tone="secondary"
-                      className="wide"
-                      onClick={() => setTab("qr")}
-                    >
-                      Увеличить QR
-                    </Button>
                     {displayUrl && (
                       <a
                         href={displayUrl}
@@ -1557,6 +1554,8 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
         <LiveQR
           queueId={data.settings.id}
           generation={data.settings.generation}
+          title={data.settings.title}
+          subtitle={data.settings.teacherName}
           admin
           baseUrl={baseUrl}
           enabled={
@@ -1945,6 +1944,8 @@ function Screen({ queueId, displayToken }) {
             <LiveQR
               queueId={queueId}
               generation={data.settings.generation}
+              title={data.settings.title}
+              subtitle={data.settings.teacherName}
               displayToken={displayToken}
               baseUrl={baseUrl}
               enabled={
