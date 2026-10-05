@@ -306,10 +306,15 @@ input::placeholder { color: #828985; }
 .password-mascot > span { position: absolute; right: -4px; bottom: 0; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #ff542b; background: #fff0e9; border: 3px solid white; }
 .password-intro h3 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.6px; }
 .password-intro p { color: #777b78; font-size: 14px; line-height: 1.55; margin: 0; }
-.password-form { display: grid; gap: 14px; }
-.password-form label { display: grid; gap: 8px; font-size: 14px; font-weight: 500; }
+.dialog .password-form { display: grid; gap: 14px; margin: 0; }
+.password-form label { display: grid; gap: 8px; margin: 0; font-size: 14px; font-weight: 500; }
+.password-form input { margin: 0; }
+.password-form input[hidden] { display: none; }
 .password-form input:not([type="checkbox"]):not([hidden]) { width: 100%; min-height: 48px; }
 .password-form .password-hint { margin: -8px 0 0; color: #777b78; font-size: 12px; }
 .password-form .password-visibility { display: flex; align-items: center; gap: 9px; font-weight: 400; }
-.password-visibility input { width: 18px; height: 18px; accent-color: #ff542b; }
+.password-visibility input { width: 18px; height: 18px; min-height: 18px; margin: 0; accent-color: #ff542b; }
 .password-form .button { width: 100%; }
+@media (max-width: 760px) {
+  .sidebar-bottom { display: flex; gap: 7px; }
+}
