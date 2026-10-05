@@ -190,9 +190,10 @@ async function fixture(
     const q = await call("/admin/queues", {
       method: "POST",
       admin: token,
-      body: { title: `Пара ${name}`, room: "302" },
+      body: { title: `Пара ${name}` },
     });
     assert.equal(q.status, 201);
+    assert.equal(q.body.queue.room, "");
     return { user: changed.body.user, token, q: q.body.queue.id, password: personalPassword };
   };
   return {

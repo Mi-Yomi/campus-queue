@@ -40,7 +40,7 @@ export function QueueEnded({ settings }) {
     <p className="ended-eyebrow">На сегодня всё</p>
     <h1>Очередь завершена</h1>
     <p>Преподаватель закончил приём.<br />К сожалению, эта очередь больше не работает.</p>
-    <span className="ended-class">{settings.title} · {settings.room}</span>
+    <span className="ended-class">{[settings.title, settings.room].filter(Boolean).join(" · ")}</span>
     <a className="ended-home" href="#/">К моим талонам</a>
     <small>Для следующей пары отсканируйте новый QR.</small>
   </main>;

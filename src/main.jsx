@@ -270,7 +270,7 @@ function Home() {
             <span>{ticket.status === "called" ? "Ваша очередь — подходите" : "Вы в очереди"}</span>
             <strong>{ticket.number}</strong>
             <h2>{ticket.queue.title}</h2>
-            <p>{ticket.queue.teacherName} · {ticket.queue.room}</p>
+            <p>{[ticket.queue.teacherName, ticket.queue.room].filter(Boolean).join(" · ")}</p>
             <span className="student-ticket-open">Открыть талон <ArrowUpRight size={16} /></span>
           </a>)}
         </main>
@@ -444,7 +444,7 @@ function Visitor({ queueId, invite, notify }) {
             <h1>{called ? "Ваша очередь!" : data.current ? "Ожидайте, сейчас идёт приём" : "Ожидайте вызова преподавателя"}</h1>
             {called ? <p className="student-call-direction">Подходите к преподавателю</p>
               : <p className="student-current-person">{data.current ? `Сейчас принимают: ${data.current.number}` : "Преподаватель скоро вызовет следующего"}</p>}
-            <p className="student-class-caption">{data.settings.title} · {data.settings.room}</p>
+            <p className="student-class-caption">{[data.settings.title, data.settings.room].filter(Boolean).join(" · ")}</p>
           </section>
           {called ? (
             <section className="student-call-details">
@@ -487,7 +487,7 @@ function Visitor({ queueId, invite, notify }) {
         <main className="student-enroll">
           <header className="student-enroll-heading">
             <h1>Запись в очередь</h1>
-            <p>{data.settings.title} · {data.settings.room}</p>
+            <p>{[data.settings.title, data.settings.room].filter(Boolean).join(" · ")}</p>
           </header>
           {mine && <p className="student-finished" role="status">
             {mine.previousSession ? "Началась новая пара. Для записи нужен свежий QR."
@@ -842,7 +842,7 @@ function Admin({ notify, onLogout }) {
           <p>
             {tab === "teachers"
               ? "Добавляйте коллег и управляйте их доступом."
-              : data ? `${data.settings.room} · ${data.settings.teacherName}`
+              : data ? [data.settings.room, data.settings.teacherName].filter(Boolean).join(" · ")
                 : "Создайте очередь и покажите QR студентам."}
           </p>
         </div>
@@ -874,7 +874,7 @@ function Admin({ notify, onLogout }) {
                 >
                   {queues.data.queues.map((q) => (
                     <option key={q.id} value={q.id}>
-                      {q.title} · {q.teacherName} · {q.room}
+                      {[q.title, q.teacherName, q.room].filter(Boolean).join(" · ")}
                     </option>
                   ))}
                 </select>
@@ -888,7 +888,7 @@ function Admin({ notify, onLogout }) {
                   queues.data ? "Нет активных очередей" : "Подключаемся…"
                 }
               >
-                Укажите название занятия и аудиторию. Сразу после создания
+                Укажите название занятия. Сразу после создания
                 появится QR для студентов.
               </Empty>
             </section>
@@ -1204,7 +1204,6 @@ function Admin({ notify, onLogout }) {
                   method: "POST",
                   body: {
                     title: values.get("title"),
-                    room: values.get("room"),
                   },
                 });
                 await queues.refresh();
@@ -1227,15 +1226,6 @@ function Admin({ notify, onLogout }) {
                 required
                 maxLength={80}
                 placeholder="Лабораторная № 3 · Базы данных"
-              />
-            </label>
-            <label>
-              Аудитория
-              <input
-                name="room"
-                required
-                maxLength={60}
-                placeholder="Аудитория 302"
               />
             </label>
             <ErrorBox error={actionError} />
@@ -1328,11 +1318,10 @@ function Settings({ data, act, disabled, startNew }) {
             />
           </label>
           <label>
-            Место сдачи
+            Место сдачи (необязательно)
             <input
               name="room"
               defaultValue={data.settings.room}
-              required
               maxLength={60}
             />
           </label>
@@ -1747,8 +1736,7 @@ function Screen({ queueId, displayToken }) {
           <Brand />
         </a>
         <span>
-          {data?.settings.title} / {data?.settings.teacherName} /{" "}
-          {data?.settings.room}
+          {[data?.settings.title, data?.settings.teacherName, data?.settings.room].filter(Boolean).join(" / ")}
         </span>
         {data && (
           <Status

@@ -112,7 +112,8 @@ Deno.serve(async (req: Request) => {
       fields(body, ["title", "room", "status", "avgMinutes", "maxQueue"]);
       const creating = path === "/admin/queues";
       if (creating || "title" in body) body.title = text(body.title, "Название", 80);
-      if (creating || "room" in body) body.room = text(body.room, "Аудитория", 60);
+      if (creating || "room" in body) body.room = body.room === undefined || (typeof body.room === "string" && !body.room.trim())
+        ? "" : text(body.room, "Аудитория", 60);
       if ("status" in body && !["open", "paused", "closed"].includes(String(body.status))) throw new ApiError(400, "Некорректный статус.");
       if ("avgMinutes" in body) integer(body.avgMinutes, 1, 120, "Время на студента");
       if ("maxQueue" in body) integer(body.maxQueue, 1, 500, "Лимит");

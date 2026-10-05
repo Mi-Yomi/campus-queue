@@ -209,7 +209,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   }
   function createQueue(
     actor,
-    { title, room, avgMinutes = 5, maxQueue = 60, status = "open" },
+    { title, room = "", avgMinutes = 5, maxQueue = 60, status = "open" },
   ) {
     const id = randomUUID();
     db.prepare("INSERT INTO queues(id,ownerId,title,room,status,avgMinutes,maxQueue,generation,createdAt) VALUES(?,?,?,?,?,?,?,?,?)").run(

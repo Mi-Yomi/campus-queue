@@ -35,7 +35,8 @@ function settingsInput(body, required = false) {
   if (required || "title" in body)
     result.title = text(body.title, "Название", 80);
   if (required || "room" in body)
-    result.room = text(body.room, "Аудитория", 60);
+    result.room = body.room === undefined || (typeof body.room === "string" && !body.room.trim())
+      ? "" : text(body.room, "Аудитория", 60);
   if ("status" in body) {
     if (!["open", "paused", "closed"].includes(body.status))
       throw new AppError(400, "Некорректный статус.");
