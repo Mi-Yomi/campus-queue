@@ -2303,6 +2303,13 @@ td strong {
   padding: 20px;
   font-size: 14px;
 }
+.qr-render-error {
+  padding: 20px;
+  text-align: center;
+  color: #758078;
+  font-size: 14px;
+}
+.qr-render-error p { margin: 0 0 14px; }
 .qr-countdown {
   display: flex;
   justify-content: space-between;

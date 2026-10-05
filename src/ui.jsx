@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
+import QRCode from "qrcode";
 import { LoaderCircle, Maximize, WifiOff, X } from "lucide-react";
 import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
@@ -226,6 +227,7 @@ export function useResource(
 }
 export function QR({ url, large = false }) {
   const [image, setImage] = useState(null), [availableWidth, setAvailableWidth] = useState(0);
+  const [attempt, setAttempt] = useState(0);
   const frame = useRef(null);
   useEffect(() => {
     const element = frame.current;
@@ -240,23 +242,29 @@ export function QR({ url, large = false }) {
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    let alive = true;
-    import("qrcode")
-      .then((m) => {
-        const matrix = m.default.create(url, { errorCorrectionLevel: "H" }).modules;
-        const src = roundedQrSvg(matrix, qrLogo);
-        if (alive) setImage({ url, modules: matrix.size + 8, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(src)}` });
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [url]);
+    // Keep the generator in the initial bundle. A lazy hashed chunk can vanish
+    // during a Pages deployment while a teacher still has the old app open.
+    try {
+      const matrix = QRCode.create(url, { errorCorrectionLevel: "H" }).modules;
+      const src = roundedQrSvg(matrix, qrLogo);
+      setImage({ url, modules: matrix.size + 8, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(src)}` });
+    } catch {
+      setImage({ url, error: true });
+    }
+  }, [url, attempt]);
   return (
     <div ref={frame} className={`qr ${large ? "large" : ""}`}>
-      {image?.url === url ? (
-        <img src={image.src} style={{ width: availableWidth >= image.modules
+      {image?.url === url && image.error ? (
+        <div className="qr-render-error" role="alert">
+          <p>Не удалось показать QR</p>
+          <Button tone="secondary" onClick={() => setAttempt(value => value + 1)}>
+            Повторить
+          </Button>
+        </div>
+      ) : image?.url === url ? (
+        <img key={`${url}:${attempt}`} src={image.src} style={{ width: availableWidth >= image.modules
           ? Math.floor(availableWidth / image.modules) * image.modules : "100%" }}
+          onError={() => setImage(current => current?.url === url ? { url, error: true } : current)}
           alt="Свежий QR-код для записи в очередь" />
       ) : (
         <LoaderCircle className="spin" />
