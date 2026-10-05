@@ -480,6 +480,7 @@ function Visitor({ queueId, invite, notify }) {
             <h1>Запись в очередь</h1>
             <p>{data.settings.title} · {data.settings.room}</p>
           </header>
+          <CreatorBanner className="student-enroll-creator" />
           {mine && <p className="student-finished" role="status">
             {mine.previousSession ? "Началась новая пара. Для записи нужен свежий QR."
               : mine.status === "done" ? "Работа сдана. До следующей пары!"
