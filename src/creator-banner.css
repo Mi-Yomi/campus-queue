@@ -59,8 +59,6 @@
 }
 .creator-banner-toggle:hover { background: #ffffff36; }
 .student-home-creator { margin-top: 20px; }
-.student-enroll .student-enroll-heading { margin-bottom: 20px; }
-.student-enroll-creator { margin-bottom: 28px; }
 .login-creator-banner { max-width: 460px; margin-bottom: 22px; border-radius: 24px; }
 @media (max-width: 360px) {
   .creator-banner-content { padding-left: 22px; padding-right: 22px; }
