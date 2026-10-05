@@ -1,20 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Volume2, VolumeX } from "lucide-react";
 import { storage } from "./api";
 import { createCallSound } from "./call-sound.mjs";
+import { createChimePlayer } from "./chime-player.mjs";
 import { studentMedia } from "./student-ui";
 
 export function useStudentSound(callKey) {
-  const audio = useRef(null);
+  const [audio] = useState(() => createChimePlayer({ url: studentMedia("call-chime.wav") }));
   const [state, setState] = useState({ enabled: false, busy: false, error: "" });
-  const [control] = useState(() => createCallSound({ media: () => audio.current, storage, changed: setState }));
+  const [control] = useState(() => createCallSound({ media: () => audio, storage, changed: setState }));
   useEffect(() => { control.update(callKey ? [callKey] : []); }, [control, callKey]);
   useEffect(() => () => control.dispose(), [control]);
-  return { audio, control, ...state };
-}
-
-export function StudentAudio({ sound }) {
-  return <audio ref={sound.audio} src={studentMedia("call-chime.wav")} preload="auto" aria-hidden="true" />;
+  return { control, ...state };
 }
 
 export function StudentSound({ sound }) {
@@ -22,7 +19,7 @@ export function StudentSound({ sound }) {
     <button type="button" aria-pressed={sound.enabled} disabled={sound.busy}
       onClick={sound.enabled ? sound.control.disable : sound.control.enable}>
       {sound.enabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-      {sound.busy ? "Проверяем звук…" : sound.enabled ? "Звук включён" : "Включить звук"}
+      {sound.busy ? "Подождите…" : sound.enabled ? "Звук включён" : "Включить звук"}
     </button>
     {sound.enabled && <button type="button" className="student-sound-preview" disabled={sound.busy}
       onClick={sound.control.preview}>Послушать</button>}

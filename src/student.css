@@ -141,6 +141,8 @@
 .student-sound-row button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: #5d6d64; padding: 9px 12px; font-size: 12px; }
 .student-sound-row p { color: var(--student-gray); font-size: 10px; line-height: 1.4; }
 .student-roster { background: #fff; color: #18211c; border-radius: 18px; padding: 20px 16px; margin-top: 28px; }
+.student-roster-sleeping { position: relative; margin-top: 134px; padding-top: 26px; }
+.student-roster-mascot { position: absolute; width: min(200px, 60%); height: 112px; object-fit: contain; object-position: center bottom; right: 16px; bottom: calc(100% - 7px); pointer-events: none; user-select: none; }
 .student-roster header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
 .student-roster header h2 { font-size: 18px; }
 .student-roster header > span { flex-shrink: 0; font-size: 12px; color: #6c7971; }

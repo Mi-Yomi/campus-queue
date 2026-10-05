@@ -1,4 +1,5 @@
 import React from "react";
+import { studentMedia } from "./student-ui";
 
 function RosterRow({ ticket, own = false }) {
   return <li className={`student-roster-row ${own ? "student-roster-own" : ""} ${ticket.status === "called" ? "student-roster-called" : ""}`}>
@@ -15,7 +16,10 @@ export function StudentRoster({ roster, mine, refreshing }) {
   if (!roster) return null;
   const before = roster.filter(t => t.seq !== mine.seq && (t.status === "called" || t.seq < mine.seq));
   const after = roster.filter(t => t.seq > mine.seq && t.status === "waiting");
-  return <section className="student-roster" aria-labelledby="student-roster-heading" aria-busy={!!refreshing}>
+  const waiting = mine.status === "waiting";
+  return <section className={`student-roster ${waiting ? "student-roster-sleeping" : ""}`} aria-labelledby="student-roster-heading" aria-busy={!!refreshing}>
+    {waiting && <img className="student-roster-mascot" src={studentMedia("ritm-sleeping.webp")}
+      alt="Котик РИТМ спит на очереди" width="200" height="112" draggable="false" />}
     <header><h2 id="student-roster-heading">Кто в очереди</h2><span>{roster.length} чел.</span></header>
     <h3>Перед вами <span>{before.length}</span></h3>
     {before.length ? <ol>{before.map(t => <RosterRow key={t.seq} ticket={t} />)}</ol>

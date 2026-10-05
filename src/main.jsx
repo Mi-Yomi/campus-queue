@@ -57,7 +57,7 @@ import "./creator-banner.css";
 import { CreatorBanner } from "./creator-banner";
 import { AppIcon } from "./app-icon";
 import { PasswordChange } from "./password-change";
-import { useStudentSound, StudentAudio, StudentSound } from "./student-sound";
+import { useStudentSound, StudentSound } from "./student-sound";
 import { StudentRoster } from "./student-roster";
 
 function savedBase() {
@@ -506,7 +506,6 @@ function Visitor({ queueId, invite, notify }) {
           )}
         </main>
       )}
-      <StudentAudio sound={sound} />
       {share && data && active && (
         <LiveQR queueId={queueId} generation={data.settings.generation} enabled={data.canShare && !error}
           title={data.settings.title} subtitle={data.settings.teacherName} initiallyExpanded onClose={() => setShare(false)} />

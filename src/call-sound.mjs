@@ -9,7 +9,7 @@ export function createCallSound({ media, storage, changed }) {
     storage.set(heardKey(key), "1", true);
   });
   const unplayed = () => calls.filter(key => !heard.has(key) && !storage.get(heardKey(key), true));
-  async function play({ enable = false } = {}) {
+  async function play({ enable = false, audible = true } = {}) {
     if (pending) return;
     const operation = ++version;
     const announced = [...calls];
@@ -17,14 +17,14 @@ export function createCallSound({ media, storage, changed }) {
     changed({ enabled, busy: true, error: "" });
     try {
       const audio = media();
-      audio.currentTime = 0;
-      await audio.play();
+      if (audible) await audio.play();
+      else await audio.unlock();
       if (operation !== version) return;
       if (enable) {
         enabled = true;
         storage.set("ritm.call-sound.v1", "on");
       }
-      remember(announced);
+      if (audible) remember(announced);
       changed({ enabled, busy: false, error: "" });
     } catch {
       if (operation !== version) return;
@@ -33,15 +33,15 @@ export function createCallSound({ media, storage, changed }) {
     } finally {
       if (operation === version) {
         pending = false;
-        // A call may have arrived while the permission/preview was pending.
+        // A call may have arrived while silent unlocking was pending.
         if (enabled && unplayed().length) void play();
       }
     }
   }
   return {
-    enable: () => play({ enable: true }),
+    enable: () => play({ enable: true, audible: false }),
     enableOnJoin() {
-      if (storage.get("ritm.call-sound.v1") !== "off") void play({ enable: true });
+      if (storage.get("ritm.call-sound.v1") !== "off") void play({ enable: true, audible: false });
     },
     disable() {
       version++;
@@ -56,6 +56,6 @@ export function createCallSound({ media, storage, changed }) {
       calls = nextCalls;
       if (enabled && unplayed().length) void play();
     },
-    dispose() { version++; pending = false; enabled = false; media()?.pause(); },
+    dispose() { version++; pending = false; enabled = false; media()?.dispose(); },
   };
 }
