@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname, basename } from "node:path";
@@ -116,6 +116,54 @@ test("issued and reset passwords must be replaced before any teacher actions", a
   assert.equal((await f.call("/admin/password",{admin:token,method:"POST",body:{newPassword:"my-recovered-password"}})).status,200);
   assert.equal((await f.call(`/admin/queues/${q}`,{admin:token})).status,200);
 });
+test("manual entries share FIFO with QR students and retry never creates a duplicate", async t => {
+  const f = await fixture(t), student = visitor();
+  await f.enroll("legacy", student);
+  const path = "/admin/queues/legacy/tickets";
+  const body = { name: "Студент без телефона", requestId: randomUUID(), generation: 1 };
+  const results = await Promise.all(Array.from({length: 3}, () => f.call(path, {admin:f.owner,method:"POST",body})));
+  results.forEach(r => { assert.equal(r.status, 200); assert.equal(r.body.ticket.number, "A-002"); });
+  assert.equal(new Set(results.map(r => r.body.ticket.id)).size, 1);
+  assert.equal(results[0].body.ticket.visitorHash, undefined);
+  const roster = (await f.call("/queues/legacy", {token:student})).body.roster;
+  assert.deepEqual(roster.map(t => t.name), ["Тестовый студент", body.name]);
+  const anonymous = (await f.call("/queues/legacy", {token:visitor()})).body;
+  assert.equal(anonymous.mine, null); assert.equal(anonymous.roster, undefined);
+  let state = (await f.call("/admin/queues/legacy/next", {admin:f.owner,method:"POST"})).body;
+  state = (await f.call("/admin/queues/legacy/next", {admin:f.owner,method:"POST",body:{currentTicketId:state.current.id}})).body;
+  assert.equal(state.current.id, results[0].body.ticket.id);
+  await f.call("/admin/queues/legacy/next", {admin:f.owner,method:"POST",body:{currentTicketId:state.current.id}});
+  const retry = await f.call(path, {admin:f.owner,method:"POST",body});
+  assert.equal(retry.body.ticket.status, "done");
+  assert.equal((await f.call("/admin/queues/legacy", {admin:f.owner})).body.stats.total, 2);
+});
+
+test("manual entry enforces teacher ownership, temporary password, capacity and current class", async t => {
+  const f = await fixture(t), a = await f.teacher("manual_a"), b = await f.teacher("manual_b");
+  const path = `/admin/queues/${a.q}/tickets`;
+  const body = { name: "Студент", requestId: randomUUID(), generation: 1 };
+  const send = (admin=a.token, changes={}) => f.call(path, {admin,method:"POST",body:{...body,...changes}});
+  assert.equal((await send()).status, 200);
+  assert.equal((await f.call(path,{method:"POST",body})).status, 401);
+  assert.equal((await send(b.token)).status, 403);
+  assert.equal((await send(a.token,{requestId:"bad"})).status, 400);
+  assert.equal((await send(a.token,{name:" "})).status, 400);
+  assert.equal((await send(a.token,{name:"Изменённое имя"})).status, 409);
+  await f.call(`/admin/queues/${a.q}/settings`,{admin:a.token,method:"PATCH",body:{maxQueue:1}});
+  assert.equal((await send(a.token,{requestId:randomUUID()})).status, 409);
+  assert.equal((await send()).status, 200); // a retry still works at capacity
+  await f.call(`/admin/queues/${a.q}/settings`,{admin:a.token,method:"PATCH",body:{status:"paused",maxQueue:10}});
+  assert.equal((await send(a.token,{requestId:randomUUID()})).status, 409);
+  await f.call(`/admin/queues/${a.q}/reset`,{admin:a.token,method:"POST",body:{confirmation:"НОВАЯ ПАРА",generation:1}});
+  assert.equal((await send()).status, 409);
+  assert.equal((await send(a.token,{generation:2,requestId:randomUUID()})).status, 200);
+  await f.call(`/admin/queues/${a.q}/end`,{admin:a.token,method:"POST",body:{confirmation:"ЗАВЕРШИТЬ",generation:2}});
+  assert.equal((await send(a.token,{generation:2,requestId:randomUUID()})).status, 410);
+  const reset = await f.call(`/admin/teachers/${b.user.id}`,{admin:f.owner,method:"PATCH",body:{resetPassword:true}});
+  const temp = await f.login("manual_b", reset.body.password);
+  assert.equal((await f.call(`/admin/queues/${b.q}/tickets`,{admin:temp,method:"POST",body})).status,403);
+});
+
 function temporary(t) {
   const dir = mkdtempSync(join(tmpdir(), "campusqueue-v2-"));
   t.after(() => {

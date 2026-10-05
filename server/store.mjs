@@ -526,6 +526,27 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       );
     });
   }
+  function addManual(id, name, requestId, generation) {
+    return tx(() => {
+      const q = queue(id), ticketId = `manual-${requestId}`;
+      if (q.endedAt) fail(410, "Очередь завершена.");
+      if (q.generation !== generation) fail(409, "Пара изменилась. Откройте запись заново.");
+      const existing = db.prepare("SELECT * FROM queue_tickets WHERE id=?").get(ticketId);
+      if (existing) {
+        if (existing.queueId !== id || existing.generation !== generation || existing.name !== name)
+          fail(409, "Эта запись уже использована. Откройте форму заново.");
+        return clean(existing);
+      }
+      requireOpen(q);
+      const count = db.prepare("SELECT COUNT(*) AS n FROM queue_tickets WHERE queueId=? AND generation=? AND status IN ('waiting','called')").get(id, generation).n;
+      if (count >= q.maxQueue) fail(409, "Очередь заполнена. Попробуйте, когда освободится место.");
+      const seq = db.prepare("SELECT COALESCE(MAX(seq),0)+1 AS n FROM queue_tickets WHERE queueId=? AND generation=?").get(id, generation).n;
+      // This ticket has no browser owner. A random, unshared capability prevents claiming it.
+      db.prepare("INSERT INTO queue_tickets VALUES(?,?,?,?,?,?,?,?,'waiting',?,NULL,NULL)")
+        .run(ticketId, id, generation, seq, `A-${String(seq).padStart(3, "0")}`, digest(newToken()), name, "", stamp());
+      return clean(db.prepare("SELECT * FROM queue_tickets WHERE id=?").get(ticketId));
+    });
+  }
   function cancel(id, token) {
     return tx(() => {
       const row = db
@@ -691,6 +712,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     issueInvite,
     redeem,
     join,
+    addManual,
     cancel,
     next,
     finish,

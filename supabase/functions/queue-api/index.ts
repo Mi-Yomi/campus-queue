@@ -117,6 +117,13 @@ Deno.serve(async (req: Request) => {
       if ("status" in body && !["open", "paused", "closed"].includes(String(body.status))) throw new ApiError(400, "Некорректный статус.");
       if ("avgMinutes" in body) integer(body.avgMinutes, 1, 120, "Время на студента");
       if ("maxQueue" in body) integer(body.maxQueue, 1, 500, "Лимит");
+    } else if (/^\/admin\/queues\/[^/]+\/tickets$/.test(path) && req.method === "POST") {
+      fields(body, ["name", "requestId", "generation"]);
+      body.name = text(body.name, "Имя", 60);
+      body.requestId = text(body.requestId, "Запрос", 36).toLowerCase();
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(String(body.requestId)))
+        throw new ApiError(400, "Некорректный запрос записи.");
+      integer(body.generation, 1, 1_000_000, "Номер пары");
     } else if (/^\/queues\/[^/]+\/join$/.test(path) && req.method === "POST") {
       fields(body, ["name", "studentGroup", "grantId"]);
       body.name = text(body.name, "Имя", 60);

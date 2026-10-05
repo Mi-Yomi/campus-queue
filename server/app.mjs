@@ -283,6 +283,14 @@ export function createApp(options = {}) {
     store.next(req.params.queueId, currentTicketId);
     res.json(store.snapshot(req.params.queueId, undefined, true));
   });
+  app.post("/api/admin/queues/:queueId/tickets", (req, res) => {
+    fields(req.body, ["name", "requestId", "generation"]);
+    const requestId = text(req.body?.requestId, "Запрос", 36);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))
+      throw new AppError(400, "Некорректный запрос записи.");
+    res.json({ ticket: store.addManual(req.params.queueId, text(req.body?.name, "Имя", 60), requestId.toLowerCase(),
+      integer(req.body?.generation, 1, 1_000_000, "Номер пары")) });
+  });
   app.post("/api/admin/queues/:queueId/tickets/:id/finish", (req, res) => {
     if (!["done", "skipped"].includes(req.body?.status))
       throw new AppError(400, "Некорректный статус талона.");

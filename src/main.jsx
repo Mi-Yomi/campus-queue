@@ -59,6 +59,8 @@ import { AppIcon } from "./app-icon";
 import { PasswordChange } from "./password-change";
 import { useStudentSound, StudentSound } from "./student-sound";
 import { StudentRoster } from "./student-roster";
+import { ConnectionNotice } from "./connection-notice";
+import { ManualEnrollment } from "./manual-enrollment";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -250,12 +252,12 @@ function App() {
   );
 }
 function Home() {
-  const { data, error } = useResource("/me/tickets");
+  const resource = useResource("/me/tickets"), { data, error } = resource;
   const current = data?.tickets.filter(activeTicket) || [];
   const past = data?.tickets.filter((ticket) => !activeTicket(ticket)) || [];
   return (
     <StudentPage home called={current.some((ticket) => ticket.status === "called")}>
-      <ErrorBox error={error} />
+      <ConnectionNotice {...resource} retry={resource.refresh} ticketSaved={!!current.length} />
       {!current.length ? (
         <main className="student-empty">
           {data ? <img src={studentMedia("sleeping.png")} alt="" width="92" height="95" />
@@ -420,7 +422,7 @@ function Visitor({ queueId, invite, notify }) {
   };
   return (
     <StudentPage waiting={active} called={called} ended={ended && !completed} completed={completed}>
-      <ErrorBox error={error}>{data ? " Показаны последние полученные данные." : ""}</ErrorBox>
+      <ConnectionNotice {...resource} retry={refresh} ticketSaved={!!active} />
       {!data ? (
         <main className="student-empty"><LoaderCircle className="spin" size={32} /><h1>Загружаем очередь…</h1></main>
       ) : completed ? <WorkDone settings={data.settings} ticket={mine} /> : ended ? <QueueEnded settings={data.settings} /> : active ? (
@@ -653,6 +655,7 @@ function Admin({ notify, onLogout }) {
     [create, setCreate] = useState(false),
     [resetGeneration, setResetGeneration] = useState(null),
     [endTarget, setEndTarget] = useState(null),
+    [manualQueue, setManualQueue] = useState(null),
     [baseUrl, setBaseUrl] = useState(savedBase),
     [displayUrl, setDisplayUrl] = useState("");
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -798,10 +801,9 @@ function Admin({ notify, onLogout }) {
       error={connectionError}
       displayUrl={displayUrl}
     >
-      <ErrorBox error={connectionError}>
-        {" "}
-        Действия недоступны до восстановления связи.
-      </ErrorBox>
+      <ConnectionNotice error={connectionError} updatedAt={current.updatedAt || queues.updatedAt || me.updatedAt}
+        refreshing={me.refreshing || queues.refreshing || current.refreshing}
+        retry={() => Promise.all([me.refresh(), queues.refresh(), refresh()])} />
       <div className="page-heading">
         <div>
           <div className="eyebrow">
@@ -998,7 +1000,11 @@ function Admin({ notify, onLogout }) {
                           Уже приняли
                         </button>
                       </div>
-                      <span className="small muted">По порядку записи</span>
+                      <button className="manual-entry-button" type="button"
+                        disabled={disabled || data.settings.status !== "open" || !data.settings.teacherActive}
+                        onClick={() => setManualQueue(data.settings)}>
+                        <Plus size={16} /> Добавить студента
+                      </button>
                     </div>
                     {tickets.length ? (
                       <div className="table-wrap">
@@ -1157,6 +1163,11 @@ function Admin({ notify, onLogout }) {
         </>
       )}
       {showPassword && <PasswordChange user={user} onClose={closePassword} onChanged={passwordChanged} />}
+      {manualQueue && <ManualEnrollment queue={manualQueue} blocked={!!connectionError} onClose={() => setManualQueue(null)}
+        onAdded={async ticket => {
+          await Promise.all([refresh(), queues.refresh()]);
+          notify(`Талон ${ticket.number} готов.`);
+        }} />}
       {endTarget && (
         <Dialog title="Завершить очередь?" onClose={() => { if (!busy) setEndTarget(null); }}>
           <p><strong>{endTarget.title}</strong></p>
@@ -1520,7 +1531,8 @@ function Teachers({ notify, baseUrl }) {
           Добавить преподавателя
         </Button>
       </div>
-      <ErrorBox error={resource.error || error} />
+      <ConnectionNotice {...resource} retry={resource.refresh} />
+      <ErrorBox error={error} />
       <section className="panel">
         {resource.data?.teachers.length ? (
           <div className="teacher-list">
@@ -1705,7 +1717,7 @@ function Teachers({ notify, baseUrl }) {
   );
 }
 function Screen({ queueId, displayToken }) {
-  const { data, error } = useResource(`/queues/${queueId}`);
+  const resource = useResource(`/queues/${queueId}`), { data, error } = resource;
   const [baseUrl] = useState(savedBase);
   if (data?.settings.endedAt) return <StudentPage ended><QueueEnded settings={data.settings} /></StudentPage>;
   return (
@@ -1724,7 +1736,7 @@ function Screen({ queueId, displayToken }) {
           />
         )}
       </header>
-      <ErrorBox error={error}> На экране последние полученные данные.</ErrorBox>
+      <ConnectionNotice {...resource} retry={resource.refresh} />
       <main className="screen-grid">
         <section className="screen-current">
           <div className="eyebrow">

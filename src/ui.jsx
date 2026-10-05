@@ -6,6 +6,7 @@ import { applyLiveSnapshot } from "./live-state.mjs";
 import { queueBase } from "./queue-links.mjs";
 import { roundedQrSvg } from "./qr-art.mjs";
 import qrLogo from "./assets/ritm-qr-mark.png?inline";
+import { createResourcePoller } from "./resource-poller.mjs";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -112,16 +113,19 @@ export function useResource(
   path,
   { admin = false, enabled = true, poll = 3000 } = {},
 ) {
-  const [state, setState] = useState({ key: null, data: null, error: null });
+  const [state, setState] = useState({ key: null, data: null, error: null, updatedAt: 0, refreshing: false });
   const controller = useRef(null),
     keyRef = useRef(path);
+  const poller = useRef(null);
   const latestLive = useRef(null);
   keyRef.current = path;
-  const refresh = useCallback(async () => {
+  const load = useCallback(async () => {
     if (!path || !enabled) return null;
     controller.current?.abort();
     const current = new AbortController();
     controller.current = current;
+    setState(s => s.key === path ? { ...s, refreshing: true }
+      : { key: path, data: null, error: null, updatedAt: 0, refreshing: true });
     const timeout = setTimeout(
       () => current.abort(new Error("Сервер не ответил. Попробуйте ещё раз.")),
       10000,
@@ -130,9 +134,11 @@ export function useResource(
       const data = await request(path, { admin, signal: current.signal });
       if (!current.signal.aborted && keyRef.current === path)
         setState((old) => {
-          if (old.key === path && old.data?.revision > data.revision) return old;
+          if (old.key === path && old.data?.revision > data.revision)
+            return { ...old, error: null, refreshing: false, updatedAt: Date.now() };
           return { key: path, data: !admin && latestLive.current?.key === path
-            ? applyLiveSnapshot(data, latestLive.current.snapshot) : data, error: null };
+            ? applyLiveSnapshot(data, latestLive.current.snapshot) : data,
+            error: null, refreshing: false, updatedAt: Date.now() };
         });
       return data;
     } catch (error) {
@@ -146,63 +152,75 @@ export function useResource(
           key: path,
           data: s.key === path ? s.data : null,
           error,
+          updatedAt: s.key === path ? s.updatedAt : 0,
+          refreshing: false,
         }));
       return null;
     } finally {
       clearTimeout(timeout);
     }
   }, [path, admin, enabled]);
+  const refresh = useCallback(() => poller.current?.refresh() ?? Promise.resolve(null), []);
   useEffect(() => {
     if (!enabled || !path) return;
-    let active = true,
-      timer, unsubscribe, eventTimer, connected = false;
+    let active = true, unsubscribe, eventTimer, connected = false;
     const queueId = path.match(/^\/(?:admin\/)?queues\/([^/]+)$/)?.[1];
-    const tick = async () => {
-      if (!cloudEnabled || document.visibilityState === "visible") await refresh();
-      const interval = cloudEnabled ? (queueId && !connected ? 15000 : 180000) : poll;
-      if (active && poll) timer = setTimeout(tick, interval);
-    };
-    tick();
+    const sync = createResourcePoller({
+      load, online: () => navigator.onLine !== false,
+      visible: () => document.visibilityState === "visible",
+      interval: () => !poll ? 0 : cloudEnabled ? (queueId && !connected ? 15000 : 180000) : poll,
+      onOffline: () => {
+        controller.current?.abort();
+        setState(s => ({ key: path, data: s.key === path ? s.data : null,
+          updatedAt: s.key === path ? s.updatedAt : 0, refreshing: false,
+          error: Object.assign(new Error("Нет подключения к интернету."), { isConnectionError: true }) }));
+      },
+    });
+    poller.current = sync;
+    void sync.refresh();
     if (cloudEnabled && queueId) import("./realtime").then(({ subscribeQueue }) => {
       if (!active) return;
       unsubscribe = subscribeQueue(queueId, (snapshot) => {
         if (!active || document.visibilityState !== "visible") return;
         if (admin) {
           clearTimeout(eventTimer);
-          eventTimer = setTimeout(refresh, 150);
+          eventTimer = setTimeout(sync.refresh, 150);
         } else {
           latestLive.current = { key: path, snapshot };
-          setState(s => s.key === path ? { ...s, data: applyLiveSnapshot(s.data, snapshot), error: null } : s);
+          setState(s => s.key === path ? { ...s, data: applyLiveSnapshot(s.data, snapshot), updatedAt: Date.now() } : s);
         }
       }, (status) => {
         if (!active) return;
         connected = status === "SUBSCRIBED";
         // Refresh after subscribing/reconnecting to fill any missed-event gap.
-        clearTimeout(timer);
-        if (connected) tick();
-        else if (poll) timer = setTimeout(tick, 15000);
+        void sync.refresh();
       });
-    }).catch(() => { connected = false; });
+    }).catch(() => { connected = false; if (active) void sync.refresh(); });
     const onVisible = () => {
-      if (document.visibilityState === "visible") refresh();
+      if (document.visibilityState === "visible") void sync.refresh();
     };
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", sync.refresh);
+    window.addEventListener("offline", sync.offline);
     const onStorage = (e) => {
-      if (e.key === "campus.changed.v1" && document.visibilityState === "visible") refresh();
+      if (e.key === "campus.changed.v1" && document.visibilityState === "visible") void sync.refresh();
     };
     if (cloudEnabled) window.addEventListener("storage", onStorage);
     return () => {
       active = false;
-      clearTimeout(timer);
+      sync.stop();
+      if (poller.current === sync) poller.current = null;
       clearTimeout(eventTimer);
       unsubscribe?.();
       controller.current?.abort();
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", sync.refresh);
+      window.removeEventListener("offline", sync.offline);
       window.removeEventListener("storage", onStorage);
     };
-  }, [refresh, poll, path, enabled]);
+  }, [load, poll, path, enabled]);
   return {
-    ...(state.key === path ? state : { data: null, error: null }),
+    ...(state.key === path ? state : { data: null, error: null, updatedAt: 0, refreshing: false }),
     refresh,
   };
 }

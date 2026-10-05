@@ -62,7 +62,7 @@ export async function request(
     });
   } catch (error) {
     if (error.name === "AbortError") throw error;
-    throw new Error("Нет связи с сервером. Проверьте подключение.");
+    throw Object.assign(new Error("Нет связи с сервером. Проверьте подключение."), { isConnectionError: true });
   }
   let result;
   try {

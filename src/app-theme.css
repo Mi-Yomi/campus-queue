@@ -289,6 +289,29 @@ input::placeholder { color: #828985; }
 .queue-end-action { border-top:1px solid #e1e6e3; padding-top:20px; margin-top:8px; }
 .queue-end-action p { text-align:center; color:#818783; font-size:11px; margin:9px 0 0; }
 .end-warning { color:#b52936; background:#fff0f1; padding:12px; border-radius:12px; }
+.connection-notice { display:flex; align-items:center; gap:20px; padding:20px 24px; margin:0 0 24px; background:#fff0ed; color:#392d2a; border:1px solid #f5d8d0; border-radius:22px; }
+.connection-notice > img { flex-shrink:0; object-fit:contain; }
+.connection-notice .connection-notice-copy { min-width:0; }
+.connection-notice h2 { color:#392d2a; font-size:18px; margin:0 0 6px; }
+.connection-notice p { color:#765d55; font-size:13px; line-height:1.5; margin:0 0 8px; }
+.connection-notice .connection-notice-time { color:#897169; font-size:11px; }
+.connection-notice .button { padding:9px 16px; background:#fff; color:#573a30; border-color:#ead3cb; }
+.manual-entry-button { display:inline-flex; align-items:center; gap:6px; padding:10px 12px; border-radius:12px; color:#df4927; background:#fff0e9; font-size:12px; font-weight:600; white-space:nowrap; }
+.manual-entry-button:disabled { opacity:.45; cursor:not-allowed; }
+.manual-entry-caption { color:#18211c; font-weight:600; margin:0 0 8px; }
+.manual-entry-hint { color:#748078; font-size:13px; line-height:1.5; margin:0 0 20px; }
+.manual-ticket-result { text-align:center; }
+.manual-ticket-number { display:block; font-size:64px; letter-spacing:-3px; line-height:1.2; color:#ff552d; margin:12px 0; }
+.manual-ticket-result h3 { margin:12px 0 6px; }
+.manual-ticket-result p { color:#748078; font-size:14px; line-height:1.5; margin:0 0 20px; }
+@media (max-width:600px) {
+  .connection-notice { gap:12px; padding:18px 14px; align-items:flex-start; }
+  .connection-notice > img { width:68px; height:68px; }
+  .connection-notice h2 { font-size:16px; }
+  .connection-notice p { font-size:12px; }
+  .queue-toolbar:has(.manual-entry-button) { flex-wrap:wrap; gap:0; }
+  .queue-toolbar .manual-entry-button { margin:8px 0 12px; }
+}
 .student-page.student-ended { background:#df454d; color:#fff; --student-gray:#fff; }
 .student-ended .student-nav a, .student-ended .brand-wordmark { color:#fff; }
 .queue-ended-screen { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:28px 0 46px; }
