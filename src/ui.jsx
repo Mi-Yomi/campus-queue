@@ -5,7 +5,6 @@ import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
 import { queueBase } from "./queue-links.mjs";
 import { roundedQrSvg } from "./qr-art.mjs";
-import { AppIcon } from "./app-icon";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -24,14 +23,14 @@ export const activeTicket = (ticket) =>
   ["waiting", "called"].includes(ticket.status) &&
   !ticket.previousSession;
 export const here = () => `${location.origin}${location.pathname}`;
-export function Brand() {
+export function Brand({ compact = false }) {
   return (
-    <div className="brand">
+    <div className={`brand ritm-brand ${compact ? "brand-compact" : ""}`}>
       <span className="brand-mark">
-        <AppIcon name="ticket" />
+        <img src={`${import.meta.env.BASE_URL}brand/ritm-mark.webp`} width="48" height="48" alt="" />
       </span>
       <span>
-        по порядку<span className="brand-caption">очередь на пару</span>
+        <span className="brand-wordmark">РИТМ</span>{!compact && <span className="brand-caption">очередь на пару</span>}
       </span>
     </div>
   );
@@ -254,7 +253,7 @@ export function LiveQR({
   displayToken,
   enabled = true,
   title = "Запись в очередь",
-  subtitle = "По порядку · очередь на пару",
+  subtitle = "РИТМ · очередь на пару",
   initiallyExpanded = false,
   onClose,
 }) {

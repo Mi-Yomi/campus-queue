@@ -6,9 +6,9 @@
   color: #080b0a;
 }
 .student-page.student-waiting { background: #f2f6f5; }
-.student-page.student-called { background: #36d780; color: #063b20; --student-gray: #175531; }
+.student-page.student-called { background: #36d780; color: #fff; --student-gray: #fff; }
 .student-page :is(button, a, input, summary):focus-visible { outline-color: #f39871; }
-.student-called :is(button, a):focus-visible { outline-color: #063b20; }
+.student-called :is(button, a):focus-visible { outline-color: #fff; }
 .student-frame {
   width: min(100%, 440px);
   min-height: 100vh;
@@ -52,7 +52,7 @@
 .student-tickets > h1, .student-subtitle { text-align: center; }
 .student-subtitle { font-size: 14px; color: var(--student-gray); margin: 10px 0 32px; }
 .student-ticket-link { display: block; background: #f2f6f5; padding: 24px; margin: 16px 0; border-radius: 18px; }
-.student-called .student-ticket-link { background: #ffffffd9; }
+.student-called .student-ticket-link { background: #ffffffed; color: #080b0a; }
 .student-ticket-link > span { font-size: 13px; color: #5c6a61; }
 .student-ticket-link > strong { display: block; font-size: 46px; margin: 10px 0 18px; letter-spacing: -1.5px; }
 .student-ticket-link h2 { font-size: 17px; overflow-wrap: anywhere; }
@@ -128,7 +128,7 @@
 .student-called .student-receipt::after { display: none; }
 .student-called .student-ticket-label { text-transform: uppercase; font-size: 14px; letter-spacing: 1px; font-weight: 600; }
 .student-called .student-ticket-number { font-size: clamp(64px, 22vw, 96px); letter-spacing: -3px; margin: 16px 0; }
-.student-called .student-receipt h1 { font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -1px; color: #063b20; }
+.student-called .student-receipt h1 { font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -1px; color: #fff; }
 .student-call-direction { font-size: 18px; margin-top: 14px; }
 .student-called .student-class-caption { font-size: 13px; margin-top: 16px; }
 .student-call-details { text-align: center; padding: 4px 0 20px; }
@@ -137,7 +137,7 @@
 .student-call-details p { font-size: 14px; margin-top: 8px; overflow-wrap: anywhere; }
 .student-called .student-actions { margin-top: 16px; }
 .student-called .student-actions button { background: #ffffffdf; }
-.student-called .student-sound-row button { color: #175531; }
+.student-called .student-sound-row button { color: #fff; }
 .student-page .connection-error { font-size: 12px; margin: 0 0 16px; flex-shrink: 0; }
 @media (min-width: 700px) {
   .student-frame { padding-top: 28px; padding-bottom: 28px; }

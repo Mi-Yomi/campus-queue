@@ -27,6 +27,17 @@ input::placeholder { color: #828985; }
 .brand-mark, .sidebar .brand-mark { width: 43px; height: 43px; background: none; }
 .brand-mark .app-icon { width: 46px; height: 46px; }
 .brand-caption { color: #79817d; letter-spacing: 0; font-size: 11px; }
+.ritm-brand { gap: 10px; }
+.ritm-brand .brand-mark, .sidebar .ritm-brand .brand-mark { width: 48px; height: 48px; }
+.ritm-brand .brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.brand-wordmark { display: block; font-size: 29px; font-weight: 700; line-height: 1; letter-spacing: -1.3px; }
+.ritm-brand .brand-caption { margin-top: 6px; }
+.brand-compact { gap: 7px; }
+.brand-compact .brand-mark { width: 30px; height: 30px; }
+.brand-compact .brand-wordmark { font-size: 20px; letter-spacing: -.8px; }
+.student-nav .ritm-brand { color: #252c27; }
+.student-called .ritm-brand { color: #fff; }
+.student-home-brand { display: flex; justify-content: center; padding: 4px 0 10px; }
 .app-shell { grid-template-columns: 248px minmax(0, 1fr); background: #f2f6f5; }
 .sidebar { background: #fff; color: var(--ink); padding: 32px 20px 24px; border-right: 1px solid var(--border); }
 .nav-caption { color: #8a918d; font-size: 10px; letter-spacing: 1.2px; margin: 48px 14px 16px; }
@@ -165,7 +176,7 @@ input::placeholder { color: #828985; }
 .screen-current .eyebrow { color: #6e7b72; }
 .screen-current h1 { color: #171b19; }
 .screen-current > p, .screen-next > span, .screen-next > div > span { color: #6b7a70; }
-.screen-serving .screen-current :is(h1, p, .eyebrow), .screen-serving .screen-next > span { color: #124d2b; }
+.screen-serving .screen-current :is(h1, p, .eyebrow), .screen-serving .screen-next > span, .screen-serving .screen-next > div > span { color: #fff; }
 .screen-next { border-color: #dce9e0; }
 .screen-next strong { background: #f0f5f2; color: #405749; border-radius: 12px; }
 .screen-qr { border: 0; border-radius: 28px; }

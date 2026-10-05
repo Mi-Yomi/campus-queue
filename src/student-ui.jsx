@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Pause, Play } from "lucide-react";
+import { Brand } from "./ui";
 
 export const studentMedia = (file) => `${import.meta.env.BASE_URL}media/${file}`;
 
@@ -19,9 +20,10 @@ export function StudentPage({ children, waiting = false, called = false, home = 
   return (
     <div className={`student-page ${waiting ? "student-waiting" : ""} ${called ? "student-called" : ""}`}>
       <div className="student-frame">
+        {home && <div className="student-home-brand"><Brand compact /></div>}
         {!home && <nav className="student-nav" aria-label="Навигация студента">
           <a href="#/"><ArrowLeft size={17} />Все талоны</a>
-          <span>по порядку</span>
+          <Brand compact />
         </nav>}
         {children}
         {home && <footer className="student-footer"><a href="#/admin">Вход преподавателя</a></footer>}

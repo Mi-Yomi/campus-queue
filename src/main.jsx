@@ -185,7 +185,7 @@ function Shell({
         </header>
         <main>{children}</main>
         <footer>
-          <span>по порядку · очередь на пару</span>
+          <span>РИТМ · очередь на пару</span>
           <span>
             {data?.serverTime
               ? `Обновлено в ${time(data.serverTime)} · ${cloudEnabled ? "в реальном времени" : "каждые 3 сек"}`
@@ -393,9 +393,9 @@ function Visitor({ queueId, invite, notify }) {
     if (mine) previous.current = mine.status;
     document.title =
       called
-        ? "Вас вызывают! — По порядку"
-        : "По порядку — очередь на пару";
-    return () => { document.title = "По порядку — очередь на пару"; };
+        ? "Вас вызывают! — РИТМ"
+        : "РИТМ — очередь на пару";
+    return () => { document.title = "РИТМ — очередь на пару"; };
   }, [mine?.status, sound, called]);
   async function act(path, body) {
     setBusy(true);
@@ -1780,7 +1780,7 @@ function LaunchPage() {
           </ol>
         </section>
       </main>
-      <footer className="launch-footer">по порядку · онлайн-очередь на сдачу работ</footer>
+      <footer className="launch-footer">РИТМ · онлайн-очередь на сдачу работ</footer>
     </div>
   );
 }
