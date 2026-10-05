@@ -657,9 +657,11 @@ function Metric({ artwork, label, value, unit, detail, color }) {
 function Admin({ notify, onLogout }) {
   const me = useResource("/admin/me", { admin: true, poll: 5000 }),
     user = me.data?.user;
+  const [passwordSaved, setPasswordSaved] = useState(false);
+  const passwordRequired = !!user?.passwordChangeSuggested && !passwordSaved;
   const queues = useResource("/admin/queues", {
     admin: true,
-    enabled: !!user && !user.passwordChangeSuggested,
+    enabled: !!user && !passwordRequired,
     poll: 5000,
   });
   const [selected, setSelected] = useState(
@@ -678,8 +680,10 @@ function Admin({ notify, onLogout }) {
   const [securityRevision, setSecurityRevision] = useState(0);
   const showPassword = user && passwordOpen;
   function closePassword() { setPasswordOpen(false); }
-  async function passwordChanged() {
-    await me.refresh();
+  function passwordChanged() {
+    // The successful mutation is authoritative even if the follow-up read fails.
+    setPasswordSaved(true);
+    me.refresh();
     closePassword();
     setSecurityRevision((value) => value + 1);
     notify("Пароль изменён. На других устройствах потребуется войти заново.");
@@ -696,7 +700,7 @@ function Admin({ notify, onLogout }) {
   }, [queues.data, selected]);
   const current = useResource(qid ? `/admin/queues/${qid}` : null, {
     admin: true,
-    enabled: !!qid && !!user && !user.passwordChangeSuggested,
+    enabled: !!qid && !!user && !passwordRequired,
   });
   const { data, error, refresh } = current,
     connectionError = me.error || queues.error || error;
@@ -705,7 +709,7 @@ function Admin({ notify, onLogout }) {
   }, [connectionError?.status, onLogout]);
   useEffect(() => {
     if (
-      !user || user.passwordChangeSuggested ||
+      !user || passwordRequired ||
       storage.get("campus.link.v1") ||
       !["localhost", "127.0.0.1"].includes(location.hostname)
     )
@@ -719,10 +723,10 @@ function Admin({ notify, onLogout }) {
         }
       })
       .catch(() => {});
-  }, [!!user, user?.passwordChangeSuggested]);
+  }, [!!user, passwordRequired]);
   useEffect(() => {
     setDisplayUrl("");
-    if (!qid || !data || !user || user.passwordChangeSuggested) return;
+    if (!qid || !data || !user || passwordRequired) return;
     let alive = true;
     request(`/admin/queues/${qid}/display-session`, {
       admin: true,
@@ -735,7 +739,7 @@ function Admin({ notify, onLogout }) {
     return () => {
       alive = false;
     };
-  }, [qid, data?.settings.generation, securityRevision, user?.passwordChangeSuggested]);
+  }, [qid, data?.settings.generation, securityRevision, passwordRequired]);
   async function act(suffix, body, message, method = "POST", target = qid) {
     if (!target) return false;
     setBusy(true);
@@ -788,7 +792,7 @@ function Admin({ notify, onLogout }) {
     }
   }
   const disabled = busy || !!connectionError || !!data?.settings.endedAt;
-  if (user?.passwordChangeSuggested) return (
+  if (passwordRequired) return (
     <div className="password-required-page">
       <Brand />
       <PasswordChange user={user} required onChanged={passwordChanged} onLogout={async () => {
