@@ -19,5 +19,13 @@ export function applyLiveSnapshot(data, live) {
     ? data.admission : null;
   const canShare = !!(mine && !mine.previousSession && ["waiting", "called"].includes(mine.status)
     && live.settings.status === "open" && live.settings.teacherActive);
-  return { ...data, ...publicData, mine, admission, canShare };
+  // Names stay in participant-only API responses; public events update their order/status.
+  const canSeeRoster = mine && !mine.previousSession && ["waiting", "called"].includes(mine.status)
+    && !live.settings.endedAt && live.settings.teacherActive;
+  const knownNames = new Map((data.roster || []).map(t => [t.seq, t.name]));
+  const roster = canSeeRoster ? states.filter(t => ["waiting", "called"].includes(t.status))
+    .map(t => ({ seq: t.seq, number: t.number, status: t.status,
+      name: t.seq === mine.seq ? mine.name : knownNames.get(t.seq) || null })) : [];
+  return { ...data, ...publicData, mine, admission, canShare, roster,
+    rosterNeedsRefresh: !!canSeeRoster && roster.some(t => !t.name) };
 }

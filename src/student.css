@@ -140,6 +140,24 @@
 .student-sound-row { text-align: center; margin-top: 16px; }
 .student-sound-row button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: #5d6d64; padding: 9px 12px; font-size: 12px; }
 .student-sound-row p { color: var(--student-gray); font-size: 10px; line-height: 1.4; }
+.student-roster { background: #fff; color: #18211c; border-radius: 18px; padding: 20px 16px; margin-top: 28px; }
+.student-roster header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+.student-roster header h2 { font-size: 18px; }
+.student-roster header > span { flex-shrink: 0; font-size: 12px; color: #6c7971; }
+.student-roster h3 { display: flex; gap: 8px; align-items: center; font-size: 12px; font-weight: 500; color: #6c7971; margin: 16px 0 8px; }
+.student-roster h3 > span { font-size: 11px; background: #f1f5f2; border-radius: 8px; padding: 2px 6px; }
+.student-roster ol { list-style: none; margin: 0; padding: 0; }
+.student-roster-row { display: flex; align-items: center; gap: 12px; padding: 13px 8px; border-bottom: 1px solid #f0f3f1; }
+.student-roster-row:last-child { border-bottom: 0; }
+.student-roster-number { font-size: 12px; font-weight: 600; flex-shrink: 0; min-width: 43px; }
+.student-roster-person { min-width: 0; flex: 1; }
+.student-roster-person strong { font-size: 13px; font-weight: 500; line-height: 1.4; display: block; overflow-wrap: anywhere; }
+.student-roster-person small { display: block; margin-top: 4px; font-size: 10px; color: #2d7b4b; }
+.student-roster .student-roster-self { margin: 16px 0; }
+.student-roster-own { background: #fff0e9; border-radius: 12px; padding: 14px 10px; }
+.student-roster-called:not(.student-roster-own) { background: #eff8f2; border-radius: 12px; }
+.student-roster-you { color: #b4391b; background: #ffe0d1; font-size: 10px; font-weight: 600; padding: 4px 7px; border-radius: 7px; }
+.student-roster-empty { color: #7d8981; font-size: 12px; padding: 8px; line-height: 1.5; }
 .student-called .student-receipt { background: transparent; padding-top: 24px; margin-bottom: 18px; }
 .student-called .student-receipt::after { display: none; }
 .student-called .student-ticket-label { text-transform: uppercase; font-size: 14px; letter-spacing: 1px; font-weight: 600; }

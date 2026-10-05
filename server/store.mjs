@@ -285,6 +285,11 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
           : { number: current.number, calledAt: current.calledAt }
         : null,
       nextNumbers: waiting.slice(0, 5).map((t) => t.number),
+      ...(!admin && !q.endedAt && q.teacherActive && mine && !mine.previousSession &&
+        ["waiting", "called"].includes(mine.status) ? {
+          roster: tickets.filter((t) => ["waiting", "called"].includes(t.status))
+            .map(({ seq, number, name, status }) => ({ seq, number, name, status })),
+        } : {}),
       ...(admin ? { tickets: tickets.map(clean) } : {}),
     };
   }

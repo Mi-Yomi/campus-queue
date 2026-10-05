@@ -58,6 +58,7 @@ import { CreatorBanner } from "./creator-banner";
 import { AppIcon } from "./app-icon";
 import { PasswordChange } from "./password-change";
 import { useStudentSound, StudentAudio, StudentSound } from "./student-sound";
+import { StudentRoster } from "./student-roster";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -309,6 +310,11 @@ function Visitor({ queueId, invite, notify }) {
   const completed = mine?.status === "done" && !mine.previousSession;
   const sound = useStudentSound(called ? `${mine.id}:${mine.calledAt}` : null);
   useEffect(() => {
+    if (!active || !data?.rosterNeedsRefresh) return;
+    const timer = setTimeout(refresh, error ? 5000 : 250);
+    return () => clearTimeout(timer);
+  }, [active, data?.rosterNeedsRefresh, data?.revision, error, refresh]);
+  useEffect(() => {
     if (called || ended || completed) {
       setShare(false);
       setConfirm(false);
@@ -454,6 +460,7 @@ function Visitor({ queueId, invite, notify }) {
           </div>
           <StudentSound sound={sound} />
           {actionError && <p className="field-error" role="alert">{actionError}</p>}
+          <StudentRoster roster={data.roster} mine={mine} refreshing={data.rosterNeedsRefresh} />
         </main>
       ) : (
         <main className="student-enroll">
@@ -480,7 +487,7 @@ function Visitor({ queueId, invite, notify }) {
                     value={draft.name || ""} onChange={(event) => change("name", event.target.value)} />
                 </label>
                 <p className="student-queue-count">{data.stats.waiting ? `Сейчас в очереди: ${data.stats.waiting} чел.` : "В очереди пока никого. Будете первым :)"}</p>
-                <p className="student-name-hint">Имя сохраним для следующих пар. Его увидит только преподаватель.</p>
+                <p className="student-name-hint">Имя сохраним для следующих пар. Его увидят преподаватель и участники этой очереди.</p>
                 {(data.settings.status !== "open" || !data.settings.teacherActive) && <Status status={data.settings.status} disabled={!data.settings.teacherActive} />}
                 <p className="student-admission-time">QR подтверждён · на запись осталось {seconds} с</p>
               </div>

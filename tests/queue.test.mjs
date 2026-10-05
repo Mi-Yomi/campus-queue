@@ -519,6 +519,29 @@ test("pause/capacity/new generation are checked on grant consumption and reset i
     409,
   );
 });
+test("roster is ordered, contains only active classmates and requires a current active ticket", async (t) => {
+  const f = await fixture(t);
+  const students = [visitor(), visitor(), visitor()];
+  const tickets = [];
+  for (const token of students) tickets.push((await f.enroll("legacy", token)).body.mine);
+  await f.call("/admin/queues/legacy/next", { method: "POST", admin: f.owner });
+  const state = (await f.call("/queues/legacy", {token:students[1]})).body;
+  assert.deepEqual(state.roster.map(t => t.number), ["A-001", "A-002", "A-003"]);
+  assert.deepEqual(state.roster.map(t => t.status), ["called", "waiting", "waiting"]);
+  assert.deepEqual(Object.keys(state.roster[0]).sort(), ["name", "number", "seq", "status"]);
+  assert.equal(state.roster[0].name, "Тестовый студент");
+  assert.equal((await f.call("/queues/legacy", {token:visitor()})).body.roster, undefined);
+  const another = await f.teacher("roster_other_class");
+  assert.equal((await f.call(`/queues/${another.q}`, {token:students[1]})).body.roster, undefined);
+  await f.call("/admin/queues/legacy/next", {method:"POST",admin:f.owner,body:{currentTicketId:tickets[0].id}});
+  assert.equal((await f.call("/queues/legacy", {token:students[0]})).body.roster, undefined);
+  await f.call("/queues/legacy/leave", {method:"POST",token:students[2]});
+  assert.equal((await f.call("/queues/legacy", {token:students[2]})).body.roster, undefined);
+  assert.deepEqual((await f.call("/queues/legacy", {token:students[1]})).body.roster.map(t=>t.number), ["A-002"]);
+  await f.call("/admin/queues/legacy/reset", {method:"POST",admin:f.owner,body:{confirmation:"НОВАЯ ПАРА",generation:1}});
+  assert.equal((await f.call("/queues/legacy", {token:students[1]})).body.roster, undefined);
+});
+
 test("public snapshots keep other students private and display tokens are read-only", async (t) => {
   const f = await fixture(t),
     token = visitor();

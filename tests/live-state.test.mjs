@@ -48,3 +48,21 @@ test("disabled teacher revokes sharing and pending admission", () => {
  assert.equal(next.canShare, false); assert.equal(next.admission, null);
  assert.equal(next.mine.id, "private");
 });
+test("Realtime preserves roster names, removes finished people and fetches new names privately", () => {
+ const initial = {...data(), roster:[{seq:1,number:"A-001",name:"First",status:"waiting"},{seq:2,number:"A-002",name:"Student",status:"waiting"}]};
+ const next = applyLiveSnapshot(initial, live({states:[{seq:1,number:"A-001",status:"called"},{seq:2,number:"A-002",status:"waiting"},{seq:3,number:"A-003",status:"waiting"}]}));
+ assert.deepEqual(next.roster.map(t=>t.name), ["First","Student",null]);
+ assert.equal(next.roster[0].status,"called"); assert.equal(next.rosterNeedsRefresh,true);
+ const finished = applyLiveSnapshot(next,live({revision:3,states:[{seq:1,status:"done"},{seq:2,number:"A-002",status:"called"},{seq:3,status:"cancelled"}]}));
+ assert.deepEqual(finished.roster.map(t=>t.seq),[2]); assert.equal(finished.rosterNeedsRefresh,false);
+ for (const update of [
+   {states:[{seq:2,status:"done"}]},
+   {states:[{seq:2,status:"cancelled"}]},
+   {settings:{...settings,generation:2}},
+   {settings:{...settings,endedAt:"2026-10-05T10:00:00Z"}},
+   {settings:{...settings,teacherActive:false}},
+ ]) {
+   const cleared=applyLiveSnapshot(finished,live({...update,revision:4}));
+   assert.deepEqual(cleared.roster,[]); assert.equal(cleared.rosterNeedsRefresh,false);
+ }
+});
