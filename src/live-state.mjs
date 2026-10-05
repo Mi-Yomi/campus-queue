@@ -15,7 +15,7 @@ export function applyLiveSnapshot(data, live) {
       ...(previousSession && ["waiting", "called"].includes(mine.status) ? { status: "cancelled" } : {}),
     };
   }
-  const admission = data.admission?.generation === live.settings.generation && live.settings.teacherActive
+  const admission = !live.settings.endedAt && data.admission?.generation === live.settings.generation && live.settings.teacherActive
     ? data.admission : null;
   const canShare = !!(mine && !mine.previousSession && ["waiting", "called"].includes(mine.status)
     && live.settings.status === "open" && live.settings.teacherActive);

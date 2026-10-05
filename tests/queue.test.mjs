@@ -618,3 +618,37 @@ test("v1 migration preserves visitor ownership and is idempotent with a database
   );
   await g.close();
 });
+
+test("ending a queue is confirmed, scoped, final and recoverable by students", async (t) => {
+  const f = await fixture(t), a = await f.teacher("end_teacher"), b = await f.teacher("other_teacher");
+  const first = visitor(), second = visitor(), pending = visitor();
+  await f.enroll(a.q, first, (await f.invite(a.q, a.token)).invite);
+  await f.enroll(a.q, second, (await f.invite(a.q, a.token)).invite);
+  await f.call(`/admin/queues/${a.q}/next`, {admin:a.token,method:"POST"});
+  const invite = (await f.invite(a.q,a.token)).invite;
+  const grant = (await f.redeem(a.q,pending,invite)).body.admission.id;
+  const display = (await f.call(`/admin/queues/${a.q}/display-session`,{admin:a.token,method:"POST"})).body.token;
+  const path = `/admin/queues/${a.q}/end`, body = {confirmation:"ЗАВЕРШИТЬ",generation:1};
+  assert.equal((await f.call(path,{admin:b.token,method:"POST",body})).status,403);
+  assert.equal((await f.call(path,{admin:a.token,method:"POST",body:{generation:1}})).status,400);
+  assert.equal((await f.call(path,{admin:a.token,method:"POST",body:{...body,generation:2}})).status,409);
+  assert.equal((await f.call(`/queues/${a.q}`,{token:first})).body.mine.status,"called");
+  const results = await Promise.all([f.call(path,{admin:a.token,method:"POST",body}), f.call(path,{admin:a.token,method:"POST",body})]);
+  results.forEach(result=>assert.equal(result.status,200));
+  for (const token of [first,second]) {
+    const result = (await f.call(`/queues/${a.q}`,{token})).body;
+    assert.ok(result.settings.endedAt); assert.equal(result.mine.status,"cancelled");
+    assert.equal(result.current,null); assert.equal(result.stats.waiting,0); assert.equal(result.canShare,false);
+    assert.ok((await f.call('/me/tickets',{token})).body.tickets[0].queue.endedAt);
+  }
+  assert.equal((await f.call('/admin/queues',{admin:a.token})).body.queues.length,0);
+  assert.equal((await f.call('/admin/queues',{admin:b.token})).body.queues[0].id,b.q);
+  assert.equal((await f.call(`/admin/queues/${a.q}/settings`,{admin:a.token,method:"PATCH",body:{status:"open"}})).status,410);
+  assert.equal((await f.call(`/admin/queues/${a.q}/reset`,{admin:a.token,method:"POST",body:{confirmation:"НОВАЯ ПАРА",generation:1}})).status,410);
+  assert.equal((await f.call(`/admin/queues/${a.q}/next`,{admin:a.token,method:"POST"})).status,410);
+  assert.equal((await f.call(`/admin/queues/${a.q}/invite`,{admin:a.token})).status,410);
+  assert.equal((await f.call(`/display/queues/${a.q}/invite`,{display})).status,410);
+  assert.equal((await f.redeem(a.q,visitor(),invite)).status,410);
+  assert.equal((await f.call(`/queues/${a.q}/join`,{token:pending,method:"POST",body:{name:"Late",grantId:grant}})).status,410);
+  assert.equal((await f.call(`/queues/${a.q}`,{token:pending})).body.admission,null);
+});

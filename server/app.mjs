@@ -273,6 +273,12 @@ export function createApp(options = {}) {
     store.finish(req.params.queueId, req.params.id, req.body.status);
     res.json(store.snapshot(req.params.queueId, undefined, true));
   });
+  app.post("/api/admin/queues/:queueId/end", (req, res) => {
+    fields(req.body, ["confirmation", "generation"]);
+    if (req.body?.confirmation !== "ЗАВЕРШИТЬ") throw new AppError(400, "Подтвердите завершение очереди.");
+    store.endQueue(req.params.queueId, integer(req.body.generation, 1, 1_000_000, "Номер пары"));
+    res.json({ ok: true });
+  });
   app.post("/api/admin/queues/:queueId/reset", (req, res) => {
     if (req.body?.confirmation !== "НОВАЯ ПАРА")
       throw new AppError(400, "Введите НОВАЯ ПАРА.");
@@ -289,6 +295,7 @@ export function createApp(options = {}) {
   );
   app.post("/api/admin/queues/:queueId/display-session", (req, res) => {
     const q = store.queue(req.params.queueId);
+    if (q.endedAt) throw new AppError(410, "Очередь завершена.");
     res.json({
       token: store.createSession(req.user.id, "display", q),
       generation: q.generation,

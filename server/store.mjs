@@ -111,6 +111,11 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       db.exec("PRAGMA user_version=2;");
     });
   }
+  if (schema < 3) {
+    tx(() => {
+      db.exec("ALTER TABLE queues ADD COLUMN endedAt TEXT; PRAGMA user_version=3;");
+    });
+  }
   const secret = db
     .prepare("SELECT value FROM app_meta WHERE key='invite_secret'")
     .get().value;
@@ -151,6 +156,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       fail(403, "Это действие доступно только владельцу.");
   };
   function requireOpen(q) {
+    if (q.endedAt) fail(410, "Очередь завершена.");
     if (!q.teacherActive) fail(409, "Аккаунт преподавателя приостановлен.");
     if (q.status !== "open") fail(409, "Запись сейчас закрыта.");
   }
@@ -180,10 +186,10 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   function listQueues(actor) {
     const ids =
       actor.role === "owner"
-        ? db.prepare("SELECT id FROM queues ORDER BY createdAt DESC,id").all()
+        ? db.prepare("SELECT id FROM queues WHERE endedAt IS NULL ORDER BY createdAt DESC,id").all()
         : db
             .prepare(
-              "SELECT id FROM queues WHERE ownerId=? ORDER BY createdAt DESC,id",
+              "SELECT id FROM queues WHERE ownerId=? AND endedAt IS NULL ORDER BY createdAt DESC,id",
             )
             .all(actor.id);
     return ids.map(({ id }) => ({
@@ -200,7 +206,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     { title, room, avgMinutes = 5, maxQueue = 60, status = "open" },
   ) {
     const id = randomUUID();
-    db.prepare("INSERT INTO queues VALUES(?,?,?,?,?,?,?,?,?)").run(
+    db.prepare("INSERT INTO queues(id,ownerId,title,room,status,avgMinutes,maxQueue,generation,createdAt) VALUES(?,?,?,?,?,?,?,?,?)").run(
       id,
       actor.id,
       title,
@@ -413,6 +419,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     return tx(() => {
       const hash = digest(token),
         q = queue(id);
+      if (q.endedAt) fail(410, "Очередь завершена.");
       const active = db
         .prepare(
           "SELECT id FROM queue_tickets WHERE queueId=? AND visitorHash=? AND generation=? AND status IN ('waiting','called')",
@@ -443,6 +450,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     return tx(() => {
       const hash = digest(token),
         q = queue(id);
+      if (q.endedAt) fail(410, "Очередь завершена.");
       const grant =
         typeof grantId === "string"
           ? db
@@ -523,6 +531,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   function next(id) {
     return tx(() => {
       const q = queue(id);
+      if (q.endedAt) fail(410, "Очередь завершена.");
       if (
         db
           .prepare(
@@ -558,12 +567,14 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   }
   function updateSettings(id, values) {
     const q = { ...queue(id), ...values };
+    if (q.endedAt) fail(410, "Очередь завершена.");
     db.prepare(
       "UPDATE queues SET title=?,room=?,status=?,avgMinutes=?,maxQueue=? WHERE id=?",
     ).run(q.title, q.room, q.status, q.avgMinutes, q.maxQueue, id);
   }
   function reset(id, generation) {
     return tx(() => {
+      if (queue(id).endedAt) fail(410, "Очередь завершена.");
       if (queue(id).generation !== generation)
         fail(409, "Новая пара уже начата в другой вкладке.");
       db.prepare(
@@ -575,6 +586,18 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       db.prepare(
         "DELETE FROM auth_sessions WHERE kind='display' AND queueId=?",
       ).run(id);
+    });
+  }
+  function endQueue(id, generation) {
+    return tx(() => {
+      const q = queue(id);
+      if (q.generation !== generation) fail(409, "Пара изменилась. Откройте подтверждение заново.");
+      if (q.endedAt) return;
+      const endedAt = stamp();
+      db.prepare("UPDATE queues SET status='closed',endedAt=? WHERE id=?").run(endedAt, id);
+      db.prepare("UPDATE queue_tickets SET status='cancelled',finishedAt=? WHERE queueId=? AND status IN ('waiting','called')").run(endedAt, id);
+      db.prepare("UPDATE admission_grants SET expiresAt=0 WHERE queueId=? AND consumedTicketId IS NULL").run(id);
+      db.prepare("DELETE FROM auth_sessions WHERE queueId=? AND kind='display'").run(id);
     });
   }
   function createTeacher(actor, { username, name }) {
@@ -644,6 +667,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     finish,
     updateSettings,
     reset,
+    endQueue,
     createTeacher,
     changeTeacher,
     close: () => db.close(),

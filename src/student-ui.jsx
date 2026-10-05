@@ -5,8 +5,8 @@ import { CreatorBanner } from "./creator-banner";
 
 export const studentMedia = (file) => `${import.meta.env.BASE_URL}media/${file}`;
 
-export function StudentPage({ children, waiting = false, called = false, home = false }) {
-  const color = called ? "#36d780" : waiting ? "#f2f6f5" : "#ffffff";
+export function StudentPage({ children, waiting = false, called = false, ended = false, home = false }) {
+  const color = ended ? "#df454d" : called ? "#36d780" : waiting ? "#f2f6f5" : "#ffffff";
   useEffect(() => {
     const theme = document.querySelector('meta[name="theme-color"]');
     const previousTheme = theme?.content;
@@ -19,7 +19,7 @@ export function StudentPage({ children, waiting = false, called = false, home = 
     };
   }, [color]);
   return (
-    <div className={`student-page ${waiting ? "student-waiting" : ""} ${called ? "student-called" : ""}`}>
+    <div className={`student-page ${waiting ? "student-waiting" : ""} ${called ? "student-called" : ""} ${ended ? "student-ended" : ""}`}>
       <div className="student-frame">
         {home && <div className="student-home-brand"><Brand compact /></div>}
         {!home && <nav className="student-nav" aria-label="Навигация студента">
@@ -32,6 +32,18 @@ export function StudentPage({ children, waiting = false, called = false, home = 
       </div>
     </div>
   );
+}
+
+export function QueueEnded({ settings }) {
+  return <main className="queue-ended-screen" role="status" aria-live="polite">
+    <img src={studentMedia("ritm-sad.webp")} alt="Грустный котик РИТМ" width="180" height="180" />
+    <p className="ended-eyebrow">На сегодня всё</p>
+    <h1>Очередь завершена</h1>
+    <p>Преподаватель закончил приём.<br />К сожалению, эта очередь больше не работает.</p>
+    <span className="ended-class">{settings.title} · {settings.room}</span>
+    <a className="ended-home" href="#/">К моим талонам</a>
+    <small>Для следующей пары отсканируйте новый QR.</small>
+  </main>;
 }
 
 export function WaitingLoop() {

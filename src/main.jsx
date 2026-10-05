@@ -50,7 +50,7 @@ import "@fontsource/golos-text/latin-500.css";
 import "@fontsource/golos-text/latin-600.css";
 import "@fontsource/golos-text/latin-700.css";
 import "./styles.css";
-import { StudentPage, WaitingLoop, studentMedia } from "./student-ui";
+import { StudentPage, WaitingLoop, QueueEnded, studentMedia } from "./student-ui";
 import "./student.css";
 import "./app-theme.css";
 import "./creator-banner.css";
@@ -105,8 +105,10 @@ function Shell({
                 onClick={() => setTab("queue")}
               >
                 <AppIcon name="ticket" />
-                Мои очереди
+                Приём работ
               </button>
+              <details className="teacher-nav-more">
+                <summary>Настройки и ссылки</summary>
               <button
                 className={tab === "qr" ? "active" : ""}
                 onClick={() => setTab("qr")}
@@ -121,6 +123,7 @@ function Shell({
                 <Settings2 size={19} />
                 Настройки пары
               </button>
+              </details>
               {user?.role === "owner" && (
                 <button
                   className={tab === "teachers" ? "active" : ""}
@@ -129,13 +132,6 @@ function Shell({
                   <AppIcon name="teacher" />
                   Преподаватели
                 </button>
-              )}
-              {displayUrl && (
-                <a href={displayUrl} target="_blank" rel="noreferrer">
-                  <Monitor size={19} />
-                  Табло аудитории
-                  <ArrowUpRight size={15} />
-                </a>
               )}
             </>
           ) : (
@@ -273,7 +269,7 @@ function Home() {
       {!!past.length && <details className="student-history">
         <summary>Прошлые талоны · {past.length}</summary>
         {past.map((ticket) => <a key={ticket.id} href={`#/q/${ticket.queueId}`}>
-          <span>{ticket.queue.title}<small>{statusNames[ticket.status]}</small></span><strong>{ticket.number}</strong>
+          <span>{ticket.queue.title}<small>{ticket.queue.endedAt ? "Очередь завершена" : statusNames[ticket.status]}</small></span><strong>{ticket.number}</strong>
         </a>)}
       </details>}
     </StudentPage>
@@ -300,16 +296,17 @@ function Visitor({ queueId, invite, notify }) {
     previous = useRef(null),
     [sound, setSound] = useState(false),
     [nowTick, setNowTick] = useState(Date.now());
-  const active = activeTicket(data?.mine),
+  const ended = !!data?.settings.endedAt;
+  const active = !ended && activeTicket(data?.mine),
     mine = data?.mine;
   const called = active && mine.status === "called";
   useEffect(() => {
-    if (called) {
+    if (called || ended) {
       setShare(false);
       setConfirm(false);
       navigator.vibrate?.([200, 100, 200]);
     }
-  }, [called]);
+  }, [called, ended]);
   useEffect(() => {
     // Existing students also get a reusable name without having to retype it.
     if (mine?.name && savedStudentName(storage) === null) {
@@ -337,7 +334,7 @@ function Visitor({ queueId, invite, notify }) {
       )
     : 0;
   useEffect(() => {
-    if (!data || !invite || handled.current === invite || error) return;
+    if (!data || ended || !invite || handled.current === invite || error) return;
     if (
       active ||
       (data.admission && data.admission.expiresAt > data.serverNow)
@@ -369,6 +366,7 @@ function Visitor({ queueId, invite, notify }) {
     data?.settings.generation,
     !!data,
     active,
+    ended,
     queueId,
     error,
     refresh,
@@ -425,11 +423,11 @@ function Visitor({ queueId, invite, notify }) {
     if (key === "name") rememberStudentName(storage, value);
   };
   return (
-    <StudentPage waiting={active} called={called}>
+    <StudentPage waiting={active} called={called} ended={ended}>
       <ErrorBox error={error}>{data ? " Показаны последние полученные данные." : ""}</ErrorBox>
       {!data ? (
         <main className="student-empty"><LoaderCircle className="spin" size={32} /><h1>Загружаем очередь…</h1></main>
-      ) : active ? (
+      ) : ended ? <QueueEnded settings={data.settings} /> : active ? (
         <main className="student-ticket-screen">
           <section className="student-receipt" role={called ? "alert" : undefined} aria-live={called ? "assertive" : "off"}>
             <p className="student-ticket-label">{called ? "Вас вызывают" : "Ваш номер"}</p>
@@ -520,11 +518,11 @@ function Visitor({ queueId, invite, notify }) {
           )}
         </main>
       )}
-      {share && data && (
+      {share && data && !ended && (
         <LiveQR queueId={queueId} generation={data.settings.generation} enabled={data.canShare && !error}
           title={data.settings.title} subtitle={data.settings.teacherName} initiallyExpanded onClose={() => setShare(false)} />
       )}
-      {confirm && (
+      {confirm && !ended && (
         <Dialog title="Выйти из очереди?" onClose={() => setConfirm(false)}>
           <p>При повторной записи нужен свежий QR, а место будет в конце очереди.</p>
           <div className="dialog-actions">
@@ -664,6 +662,7 @@ function Admin({ notify, onLogout }) {
     [actionError, setActionError] = useState(""),
     [create, setCreate] = useState(false),
     [resetGeneration, setResetGeneration] = useState(null),
+    [endTarget, setEndTarget] = useState(null),
     [baseUrl, setBaseUrl] = useState(savedBase),
     [displayUrl, setDisplayUrl] = useState("");
   const qid =
@@ -739,6 +738,28 @@ function Admin({ notify, onLogout }) {
       setBusy(false);
     }
   }
+  useEffect(() => {
+    if (data?.settings.endedAt) queues.refresh();
+  }, [data?.settings.endedAt, queues.refresh]);
+  async function endCurrentQueue() {
+    if (!endTarget || busy) return;
+    setBusy(true);
+    setActionError("");
+    try {
+      await request(`/admin/queues/${endTarget.id}/end`, {
+        admin: true, method: "POST",
+        body: { confirmation: "ЗАВЕРШИТЬ", generation: endTarget.generation },
+      });
+      setEndTarget(null);
+      setSelected("");
+      storage.set("campus.selected.v2", "");
+      setTab("queue");
+      await queues.refresh();
+      notify("Очередь завершена.");
+    } catch (e) {
+      setActionError(e.message);
+    } finally { setBusy(false); }
+  }
   async function logout() {
     try {
       await request("/admin/logout", { method: "POST", admin: true });
@@ -747,7 +768,7 @@ function Admin({ notify, onLogout }) {
       setActionError(e.message);
     }
   }
-  const disabled = busy || !!connectionError;
+  const disabled = busy || !!connectionError || !!data?.settings.endedAt;
   const tickets =
     data?.tickets.filter((t) =>
       historyView
@@ -783,18 +804,17 @@ function Admin({ notify, onLogout }) {
                 ? "QR для вашей пары"
                 : tab === "settings"
                   ? "Настройки пары"
-                  : "Очереди на сдачу"}
+                  : (data?.settings.title || "Ваши очереди")}
           </h1>
           <p>
             {tab === "teachers"
               ? "Добавляйте коллег и управляйте их доступом."
-              : user?.role === "owner"
-                ? "Ваши очереди и очереди подключённых преподавателей."
-                : "Каждая очередь работает независимо от остальных."}
+              : data ? `${data.settings.room} · ${data.settings.teacherName}`
+                : "Создайте очередь и покажите QR студентам."}
           </p>
         </div>
         {tab !== "teachers" && (
-          <Button onClick={() => setCreate(true)} disabled={!user || disabled}>
+          <Button tone="secondary" onClick={() => setCreate(true)} disabled={!user || busy || !!connectionError}>
             <Plus size={17} />
             Создать очередь
           </Button>
@@ -805,7 +825,7 @@ function Admin({ notify, onLogout }) {
         <Teachers notify={notify} baseUrl={baseUrl} />
       ) : (
         <>
-          {queues.data?.queues.length > 0 && (
+          {queues.data?.queues.length > 1 && (
             <div className="queue-selector panel">
               <label>
                 Текущая очередь
@@ -826,19 +846,13 @@ function Admin({ notify, onLogout }) {
                   ))}
                 </select>
               </label>
-              {data && (
-                <Status
-                  status={data.settings.status}
-                  disabled={!data.settings.teacherActive}
-                />
-              )}
             </div>
           )}
           {!qid ? (
             <section className="panel">
               <Empty
                 title={
-                  queues.data ? "Создайте первую очередь" : "Подключаемся…"
+                  queues.data ? "Нет активных очередей" : "Подключаемся…"
                 }
               >
                 Укажите название занятия и аудиторию. Сразу после создания
@@ -872,39 +886,11 @@ function Admin({ notify, onLogout }) {
             />
           ) : (
             <>
-              <div className="metrics">
-                <Metric
-                  artwork="ticket"
-                  label="В очереди"
-                  value={data.stats.waiting}
-                  detail="ждут своего вызова"
-                  color="purple"
-                />
-                <Metric
-                  artwork="teacher"
-                  label="Уже сдали"
-                  value={data.stats.completed}
-                  detail="за текущую пару"
-                  color="green"
-                />
-                <Metric
-                  artwork="clock"
-                  label="Ожидание последнего"
-                  value={
-                    estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) ?? "—"
-                  }
-                  unit={estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) == null ? "" : "мин"}
-                  detail={data.analytics?.sampleCount ? "по фактическому времени приёма" : "оценка после первого приёма"}
-                  color="orange"
-                />
+              <div className="teacher-summary">
+                <Status status={data.settings.status} disabled={!data.settings.teacherActive} />
+                <span>Ожидают <strong>{data.stats.waiting}</strong></span>
+                <span>Сдали <strong>{data.stats.completed}</strong></span>
               </div>
-              <p className="analytics-note">
-                <Clock3 size={16} />
-                <span>{data.analytics?.sampleCount
-                  ? `Средний приём: ${durationLabel(data.analytics.averageSeconds)} · Завершённых приёмов: ${data.analytics.sampleCount}.`
-                  : "Пока нет завершённых приёмов — среднее время ещё неизвестно."}
-                {" "}Пропуски и отмены не учитываются.</span>
-              </p>
               <div className="admin-grid">
                 <div>
                   <section className={`admin-current ${data.current ? "is-serving" : ""}`}>
@@ -986,7 +972,7 @@ function Admin({ notify, onLogout }) {
                           className={!historyView ? "selected" : ""}
                           onClick={() => setHistoryView(false)}
                         >
-                          Активные{" "}
+                          В очереди{" "}
                           <span>
                             {data.stats.waiting + (data.current ? 1 : 0)}
                           </span>
@@ -997,7 +983,7 @@ function Admin({ notify, onLogout }) {
                           className={historyView ? "selected" : ""}
                           onClick={() => setHistoryView(true)}
                         >
-                          История пары
+                          Уже приняли
                         </button>
                       </div>
                       <span className="small muted">По порядку записи</span>
@@ -1109,21 +1095,66 @@ function Admin({ notify, onLogout }) {
                       ? "Пауза записи"
                       : "Открыть запись"}
                   </Button>
-                  <div className="order-note">
-                    <ShieldCheck size={20} />
-                    <div>
-                      <strong>QR меняется каждые 20 секунд</strong>
-                      <p>
-                        Выданные талоны продолжают работать независимо от смены
-                        кода.
-                      </p>
-                    </div>
+                  <div className="queue-end-action">
+                    <Button tone="danger" className="wide" disabled={disabled}
+                      onClick={() => { setActionError(""); setEndTarget({ id: qid, generation: data.settings.generation, title: data.settings.title, waiting: data.stats.waiting + Number(!!data.current) }); }}>
+                      Завершить очередь
+                    </Button>
+                    <p>Когда закончили принимать работы</p>
                   </div>
                 </aside>
               </div>
+              <details className="teacher-analytics panel">
+                <summary>Статистика приёма</summary>
+              <div className="metrics">
+                <Metric
+                  artwork="ticket"
+                  label="В очереди"
+                  value={data.stats.waiting}
+                  detail="ждут своего вызова"
+                  color="purple"
+                />
+                <Metric
+                  artwork="teacher"
+                  label="Уже сдали"
+                  value={data.stats.completed}
+                  detail="за текущую пару"
+                  color="green"
+                />
+                <Metric
+                  artwork="clock"
+                  label="Ожидание последнего"
+                  value={
+                    estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) ?? "—"
+                  }
+                  unit={estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) == null ? "" : "мин"}
+                  detail={data.analytics?.sampleCount ? "по фактическому времени приёма" : "оценка после первого приёма"}
+                  color="orange"
+                />
+              </div>
+              <p className="analytics-note">
+                <Clock3 size={16} />
+                <span>{data.analytics?.sampleCount
+                  ? `Средний приём: ${durationLabel(data.analytics.averageSeconds)} · Завершённых приёмов: ${data.analytics.sampleCount}.`
+                  : "Пока нет завершённых приёмов — среднее время ещё неизвестно."}
+                {" "}Пропуски и отмены не учитываются.</span>
+              </p>
+              </details>
             </>
           )}
         </>
+      )}
+      {endTarget && (
+        <Dialog title="Завершить очередь?" onClose={() => { if (!busy) setEndTarget(null); }}>
+          <p><strong>{endTarget.title}</strong></p>
+          <p>Очередь исчезнет из панели. Все студенты увидят, что приём завершён. Открыть эту очередь снова нельзя.</p>
+          {!!endTarget.waiting && <p className="end-warning">В очереди ещё {endTarget.waiting} чел., включая текущего студента.</p>}
+          <ErrorBox error={actionError} />
+          <div className="dialog-actions">
+            <Button tone="secondary" autoFocus disabled={busy} onClick={() => setEndTarget(null)}>Продолжить приём</Button>
+            <Button tone="danger" disabled={busy || !!connectionError} onClick={endCurrentQueue}>{busy ? "Завершаем…" : "Да, завершить очередь"}</Button>
+          </div>
+        </Dialog>
       )}
       {create && (
         <Dialog title="Новая очередь" onClose={() => setCreate(false)}>
@@ -1673,6 +1704,7 @@ function Teachers({ notify, baseUrl }) {
 function Screen({ queueId, displayToken }) {
   const { data, error } = useResource(`/queues/${queueId}`);
   const [baseUrl] = useState(savedBase);
+  if (data?.settings.endedAt) return <StudentPage ended><QueueEnded settings={data.settings} /></StudentPage>;
   return (
     <div className={`screen-page ${data?.current && !error ? "screen-serving" : ""}`}>
       <header>

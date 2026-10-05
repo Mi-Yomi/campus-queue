@@ -117,6 +117,9 @@ Deno.serve(async (req: Request) => {
       fields(body, ["invite"]); body.invite = text(body.invite, "QR", 2000);
     } else if (/^\/admin\/queues\/[^/]+\/tickets\/[^/]+\/finish$/.test(path) && req.method === "POST") {
       fields(body, ["status"]); if (!["done", "skipped"].includes(String(body.status))) throw new ApiError(400, "Некорректный статус талона.");
+    } else if (/^\/admin\/queues\/[^/]+\/end$/.test(path) && req.method === "POST") {
+      fields(body, ["generation", "confirmation"]); integer(body.generation, 1, 1000000, "Номер пары");
+      if (body.confirmation !== "ЗАВЕРШИТЬ") throw new ApiError(400, "Подтвердите завершение очереди.");
     } else if (/^\/admin\/queues\/[^/]+\/reset$/.test(path) && req.method === "POST") {
       fields(body, ["generation", "confirmation"]); integer(body.generation, 1, 1000000, "Номер пары");
       if (body.confirmation !== "НОВАЯ ПАРА") throw new ApiError(400, "Введите НОВАЯ ПАРА.");

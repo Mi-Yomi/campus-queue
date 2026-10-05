@@ -277,3 +277,26 @@ input::placeholder { color: #828985; }
   .screen-current h1 { font-size: clamp(70px, 20vw, 110px); letter-spacing: -4px; }
   .screen-current > p { font-size: 18px; }
 }
+/* A quieter teaching workspace: one main task, secondary controls on demand. */
+.teacher-summary { display:flex; align-items:center; flex-wrap:wrap; gap:12px 28px; margin:0 0 24px; color:#6b7470; font-size:14px; }
+.teacher-summary strong { color:#202523; margin-left:5px; }
+.teacher-analytics { margin-top:24px; padding:20px 24px; }
+.teacher-analytics summary { cursor:pointer; font-size:14px; font-weight:600; }
+.teacher-analytics .metrics { margin-top:22px; }
+.teacher-analytics .analytics-note { margin-bottom:0; }
+.teacher-nav-more summary { cursor:pointer; padding:16px; color:#737975; font-size:13px; }
+.teacher-nav-more[open] { padding-bottom:8px; }
+.queue-end-action { border-top:1px solid #e1e6e3; padding-top:20px; margin-top:8px; }
+.queue-end-action p { text-align:center; color:#818783; font-size:11px; margin:9px 0 0; }
+.end-warning { color:#b52936; background:#fff0f1; padding:12px; border-radius:12px; }
+.student-page.student-ended { background:#df454d; color:#fff; --student-gray:#fff; }
+.student-ended .student-nav a, .student-ended .brand-wordmark { color:#fff; }
+.queue-ended-screen { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:28px 0 46px; }
+.queue-ended-screen > img { width:180px; height:180px; object-fit:contain; margin-bottom:24px; }
+.queue-ended-screen h1 { color:#fff; font-size:34px; line-height:1.15; letter-spacing:-1px; margin:10px 0 18px; }
+.queue-ended-screen p { color:#fff; line-height:1.6; font-size:15px; }
+.queue-ended-screen .ended-eyebrow { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1.5px; }
+.ended-class { margin-top:22px; font-size:13px; color:#fff; overflow-wrap:anywhere; }
+.ended-home { display:block; width:100%; border-radius:18px; padding:20px; background:#fff; color:#a4212d; font-weight:600; margin:42px 0 16px; }
+.queue-ended-screen small { font-size:11px; line-height:1.6; }
+.student-ended :is(button,a):focus-visible { outline:3px solid #fff; outline-offset:4px; }

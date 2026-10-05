@@ -4,6 +4,15 @@ import { applyLiveSnapshot } from "../src/live-state.mjs";
 const settings = { id: "q", generation: 1, avgMinutes: 99, status: "open", teacherActive: true };
 const data = () => ({ settings, revision: 1, mine: { id: "private", name: "Student", generation: 1, seq: 2, status: "waiting" }, admission: { id: "grant", generation: 1 } });
 const live = (extra = {}) => ({ settings, revision: 2, analytics: { sampleCount: 1, averageSeconds: 300 }, current: { number: "A-001" }, states: [{ seq: 1, status: "called" }, { seq: 2, status: "waiting" }], ...extra });
+
+test("ending arrives over Realtime, clears admission and survives older events", () => {
+ const endedAt = "2026-10-05T04:00:00Z";
+ const next = applyLiveSnapshot(data(), live({settings: {...settings, status: "closed", endedAt}, current: null, states: [{seq:2,status:"cancelled"}]}));
+ assert.equal(next.settings.endedAt, endedAt);
+ assert.equal(next.mine.status, "cancelled"); assert.equal(next.mine.name, "Student");
+ assert.equal(next.canShare, false); assert.equal(next.admission, null);
+ assert.equal(applyLiveSnapshot(next, live({revision:1})),next);
+});
 test("public updates preserve private identity and calculate position", () => {
  const next = applyLiveSnapshot(data(), live());
  assert.equal(next.mine.id, "private"); assert.equal(next.mine.name, "Student");
