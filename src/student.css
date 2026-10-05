@@ -6,6 +6,22 @@
   color: #080b0a;
 }
 .student-page.student-waiting { background: #f2f6f5; }
+.student-page.student-completed { background: #f2f8f3; }
+.student-done-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0 48px;
+  text-align: center;
+}
+.student-done-screen > img { width: min(240px, 68vw); height: auto; aspect-ratio: 1; object-fit: contain; margin-bottom: 20px; }
+.student-done-badge { padding: 8px 14px; border-radius: 999px; background: #dcefe2; color: #28643c; font-size: 12px; font-weight: 600; }
+.student-done-screen h1 { margin: 18px 0 12px; font-size: 34px; letter-spacing: -1px; }
+.student-done-screen p { font-size: 18px; line-height: 1.5; color: #5c6b60; }
+.student-done-class { margin-top: 24px; font-size: 12px; color: #66776b; overflow-wrap: anywhere; max-width: 100%; }
+.student-done-home { margin-top: 40px; min-height: 48px; padding: 14px 24px; background: #fff; border-radius: 14px; font-size: 14px; font-weight: 500; }
 .student-page.student-called { background: #36d780; color: #fff; --student-gray: #fff; }
 .student-page :is(button, a, input, summary):focus-visible { outline-color: #f39871; }
 .student-called :is(button, a):focus-visible { outline-color: #fff; }

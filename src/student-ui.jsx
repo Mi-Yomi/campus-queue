@@ -5,8 +5,8 @@ import { CreatorBanner } from "./creator-banner";
 
 export const studentMedia = (file) => `${import.meta.env.BASE_URL}media/${file}`;
 
-export function StudentPage({ children, waiting = false, called = false, ended = false, home = false }) {
-  const color = ended ? "#df454d" : called ? "#36d780" : waiting ? "#f2f6f5" : "#ffffff";
+export function StudentPage({ children, waiting = false, called = false, ended = false, completed = false, home = false }) {
+  const color = completed ? "#f2f8f3" : ended ? "#df454d" : called ? "#36d780" : waiting ? "#f2f6f5" : "#ffffff";
   useEffect(() => {
     const theme = document.querySelector('meta[name="theme-color"]');
     const previousTheme = theme?.content;
@@ -19,7 +19,7 @@ export function StudentPage({ children, waiting = false, called = false, ended =
     };
   }, [color]);
   return (
-    <div className={`student-page ${waiting ? "student-waiting" : ""} ${called ? "student-called" : ""} ${ended ? "student-ended" : ""}`}>
+    <div className={`student-page ${waiting ? "student-waiting" : ""} ${called ? "student-called" : ""} ${ended ? "student-ended" : ""} ${completed ? "student-completed" : ""}`}>
       <div className="student-frame">
         {home && <div className="student-home-brand"><Brand compact /></div>}
         {!home && <nav className="student-nav" aria-label="Навигация студента">
@@ -32,6 +32,17 @@ export function StudentPage({ children, waiting = false, called = false, ended =
       </div>
     </div>
   );
+}
+
+export function WorkDone({ settings, ticket }) {
+  return <main className="student-done-screen" role="status" aria-live="polite">
+    <img src={studentMedia("ritm-done.webp")} alt="Котик РИТМ показывает лапкой палец вверх" width="240" height="240" />
+    <span className="student-done-badge">{ticket.number} · Готово!</span>
+    <h1>Работа сдана!</h1>
+    <p>Можно спокойно сидеть<br />и отдыхать :3</p>
+    <span className="student-done-class">{[settings.title, settings.room].filter(Boolean).join(" · ")}</span>
+    <a className="student-done-home" href="#/">К моим талонам</a>
+  </main>;
 }
 
 export function QueueEnded({ settings }) {

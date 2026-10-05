@@ -51,7 +51,7 @@ import "@fontsource/golos-text/latin-500.css";
 import "@fontsource/golos-text/latin-600.css";
 import "@fontsource/golos-text/latin-700.css";
 import "./styles.css";
-import { StudentPage, WaitingLoop, QueueEnded, studentMedia } from "./student-ui";
+import { StudentPage, WaitingLoop, QueueEnded, WorkDone, studentMedia } from "./student-ui";
 import "./student.css";
 import "./app-theme.css";
 import "./creator-banner.css";
@@ -309,13 +309,14 @@ function Visitor({ queueId, invite, notify }) {
   const active = !ended && activeTicket(data?.mine),
     mine = data?.mine;
   const called = active && mine.status === "called";
+  const completed = mine?.status === "done" && !mine.previousSession;
   useEffect(() => {
-    if (called || ended) {
+    if (called || ended || completed) {
       setShare(false);
       setConfirm(false);
-      navigator.vibrate?.([200, 100, 200]);
+      if (!completed) navigator.vibrate?.([200, 100, 200]);
     }
-  }, [called, ended]);
+  }, [called, ended, completed]);
   useEffect(() => {
     // Existing students also get a reusable name without having to retype it.
     if (mine?.name && savedStudentName(storage) === null) {
@@ -345,7 +346,7 @@ function Visitor({ queueId, invite, notify }) {
   useEffect(() => {
     if (!data || ended || !invite || handled.current === invite || error) return;
     if (
-      active ||
+      active || completed ||
       (data.admission && data.admission.expiresAt > data.serverNow)
     ) {
       handled.current = invite;
@@ -375,6 +376,7 @@ function Visitor({ queueId, invite, notify }) {
     data?.settings.generation,
     !!data,
     active,
+    completed,
     ended,
     queueId,
     error,
@@ -403,9 +405,9 @@ function Visitor({ queueId, invite, notify }) {
     document.title =
       called
         ? "Вас вызывают! — РИТМ"
-        : "РИТМ — очередь на пару";
+        : completed ? "Работа сдана! — РИТМ" : "РИТМ — очередь на пару";
     return () => { document.title = "РИТМ — очередь на пару"; };
-  }, [mine?.status, sound, called]);
+  }, [mine?.status, sound, called, completed]);
   async function act(path, body) {
     setBusy(true);
     setActionError("");
@@ -432,11 +434,11 @@ function Visitor({ queueId, invite, notify }) {
     if (key === "name") rememberStudentName(storage, value);
   };
   return (
-    <StudentPage waiting={active} called={called} ended={ended}>
+    <StudentPage waiting={active} called={called} ended={ended && !completed} completed={completed}>
       <ErrorBox error={error}>{data ? " Показаны последние полученные данные." : ""}</ErrorBox>
       {!data ? (
         <main className="student-empty"><LoaderCircle className="spin" size={32} /><h1>Загружаем очередь…</h1></main>
-      ) : ended ? <QueueEnded settings={data.settings} /> : active ? (
+      ) : completed ? <WorkDone settings={data.settings} ticket={mine} /> : ended ? <QueueEnded settings={data.settings} /> : active ? (
         <main className="student-ticket-screen">
           <section className="student-receipt" role={called ? "alert" : undefined} aria-live={called ? "assertive" : "off"}>
             <p className="student-ticket-label">{called ? "Вас вызывают" : "Ваш номер"}</p>
@@ -491,7 +493,6 @@ function Visitor({ queueId, invite, notify }) {
           </header>
           {mine && <p className="student-finished" role="status">
             {mine.previousSession ? "Началась новая пара. Для записи нужен свежий QR."
-              : mine.status === "done" ? "Работа сдана. До следующей пары!"
               : mine.status === "skipped" ? "Ваш номер пропущен. Для новой записи отсканируйте QR."
               : "Вы вышли из очереди. Для новой записи нужен свежий QR."}
           </p>}
@@ -527,11 +528,11 @@ function Visitor({ queueId, invite, notify }) {
           )}
         </main>
       )}
-      {share && data && !ended && (
+      {share && data && active && (
         <LiveQR queueId={queueId} generation={data.settings.generation} enabled={data.canShare && !error}
           title={data.settings.title} subtitle={data.settings.teacherName} initiallyExpanded onClose={() => setShare(false)} />
       )}
-      {confirm && !ended && (
+      {confirm && active && (
         <Dialog title="Выйти из очереди?" onClose={() => setConfirm(false)}>
           <p>При повторной записи нужен свежий QR, а место будет в конце очереди.</p>
           <div className="dialog-actions">
