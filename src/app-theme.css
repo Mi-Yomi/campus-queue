@@ -314,7 +314,10 @@ input::placeholder { color: #828985; }
 .password-form .password-hint { margin: -8px 0 0; color: #777b78; font-size: 12px; }
 .password-form .password-visibility { display: flex; align-items: center; gap: 9px; font-weight: 400; }
 .password-visibility input { width: 18px; height: 18px; min-height: 18px; margin: 0; accent-color: #ff542b; }
-.password-form .button { width: 100%; }
+.dialog .password-form > .button { width: 100%; margin-top: 0; }
 @media (max-width: 760px) {
   .sidebar-bottom { display: flex; gap: 7px; }
+  .password-mascot { width: 80px; margin-bottom: 10px; }
+  .password-mascot img { width: 80px; height: 80px; }
+  .password-intro { margin-bottom: 18px; }
 }
