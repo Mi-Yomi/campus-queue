@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowUpRight,
-  BookOpen,
   Check,
   Clock3,
   Copy,
@@ -62,7 +61,6 @@ import { useStudentSound, StudentSound } from "./student-sound";
 import { StudentRoster } from "./student-roster";
 import { ConnectionNotice } from "./connection-notice";
 import { ManualEnrollment } from "./manual-enrollment";
-import { TeacherGuide } from "./teacher-guide";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -88,7 +86,6 @@ function Shell({
   setTab,
   onLogout,
   onPasswordChange,
-  onGuide,
   data,
   error,
   displayUrl,
@@ -166,10 +163,6 @@ function Shell({
           </div>
           {admin ? (
             <>
-            <button className="sidebar-account" onClick={onGuide} aria-label="Как пользоваться" title="Как пользоваться">
-              <BookOpen size={18} />
-              Как пользоваться
-            </button>
             <button className="sidebar-account" onClick={onPasswordChange}>
               <LockKeyhole size={18} />
               Сменить пароль
@@ -666,7 +659,6 @@ function Admin({ notify, onLogout }) {
     [baseUrl, setBaseUrl] = useState(savedBase),
     [displayUrl, setDisplayUrl] = useState("");
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [guideRequest, setGuideRequest] = useState(0);
   const [securityRevision, setSecurityRevision] = useState(0);
   const showPassword = user && passwordOpen;
   function closePassword() { setPasswordOpen(false); }
@@ -805,7 +797,6 @@ function Admin({ notify, onLogout }) {
       setTab={setTab}
       onLogout={logout}
       onPasswordChange={() => setPasswordOpen(true)}
-      onGuide={() => setGuideRequest(value => value + 1)}
       data={data || me.data}
       error={connectionError}
       displayUrl={displayUrl}
@@ -1171,7 +1162,6 @@ function Admin({ notify, onLogout }) {
           )}
         </>
       )}
-      {user && <TeacherGuide key={user.id} userId={user.id} requestId={guideRequest} />}
       {showPassword && <PasswordChange user={user} onClose={closePassword} onChanged={passwordChanged} />}
       {manualQueue && <ManualEnrollment queue={manualQueue} blocked={!!connectionError} onClose={() => setManualQueue(null)}
         onAdded={async ticket => {
