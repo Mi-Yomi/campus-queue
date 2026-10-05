@@ -5,6 +5,7 @@ import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
 import { queueBase } from "./queue-links.mjs";
 import { roundedQrSvg } from "./qr-art.mjs";
+import qrLogo from "./assets/ritm-qr-mark.png?inline";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -224,8 +225,8 @@ export function QR({ url, large = false }) {
     let alive = true;
     import("qrcode")
       .then((m) => {
-        const matrix = m.default.create(url, { errorCorrectionLevel: "M" }).modules;
-        const src = roundedQrSvg(matrix);
+        const matrix = m.default.create(url, { errorCorrectionLevel: "H" }).modules;
+        const src = roundedQrSvg(matrix, qrLogo);
         if (alive) setImage({ url, modules: matrix.size + 8, src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(src)}` });
       })
       .catch(() => {});
