@@ -1,0 +1,154 @@
+.student-page {
+  --student-gray: #747777;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #fff;
+  color: #080b0a;
+}
+.student-page.student-waiting { background: #f2f6f5; }
+.student-page.student-called { background: #36d780; color: #063b20; --student-gray: #175531; }
+.student-page :is(button, a, input, summary):focus-visible { outline-color: #f39871; }
+.student-called :is(button, a):focus-visible { outline-color: #063b20; }
+.student-frame {
+  width: min(100%, 440px);
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+.student-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 32px;
+  gap: 16px;
+  margin-bottom: 26px;
+  font-size: 12px;
+  color: var(--student-gray);
+}
+.student-nav a { display: inline-flex; gap: 6px; align-items: center; min-height: 32px; }
+.student-nav > span { font-size: 11px; }
+.student-page h1 { font-size: 25px; line-height: 1.25; letter-spacing: -.6px; font-weight: 700; }
+.student-page h2 { font-size: 20px; line-height: 1.3; letter-spacing: -.35px; }
+.student-empty {
+  flex: 1;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+  padding: 40px 0;
+}
+.student-empty > img { object-fit: contain; margin-bottom: 1px; }
+.student-empty p { font-size: 16px; line-height: 1.4; color: var(--student-gray); max-width: 300px; }
+.student-empty .field-error { color: #ad3427; }
+.student-footer { padding-top: 12px; text-align: center; font-size: 11px; color: var(--student-gray); }
+.student-footer a { display: inline-block; padding: 10px; }
+.student-tickets { flex: 1; padding-top: 38px; }
+.student-tickets > h1, .student-subtitle { text-align: center; }
+.student-subtitle { font-size: 14px; color: var(--student-gray); margin: 10px 0 32px; }
+.student-ticket-link { display: block; background: #f2f6f5; padding: 24px; margin: 16px 0; border-radius: 18px; }
+.student-called .student-ticket-link { background: #ffffffd9; }
+.student-ticket-link > span { font-size: 13px; color: #5c6a61; }
+.student-ticket-link > strong { display: block; font-size: 46px; margin: 10px 0 18px; letter-spacing: -1.5px; }
+.student-ticket-link h2 { font-size: 17px; overflow-wrap: anywhere; }
+.student-ticket-link p { font-size: 13px; color: #626d66; margin-top: 5px; overflow-wrap: anywhere; }
+.student-ticket-link .student-ticket-open { display: flex; align-items: center; gap: 5px; margin-top: 20px; color: #151a17; }
+.student-history { font-size: 12px; color: var(--student-gray); margin: 18px 0 0; }
+.student-history summary { padding: 12px 0; cursor: pointer; }
+.student-history a { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid #dfe7e2; }
+.student-history small { display: block; margin-top: 5px; }
+.student-enroll { display: flex; flex: 1; flex-direction: column; }
+.student-enroll-heading { text-align: center; margin: 8px 0 66px; }
+.student-enroll-heading p { color: var(--student-gray); font-size: 15px; margin-top: 6px; overflow-wrap: anywhere; }
+.student-enroll-form { flex: 1; display: flex; flex-direction: column; }
+.student-form-fields label { display: block; color: #080b0a; font-size: 15px; font-weight: 600; margin: 0; }
+.student-form-fields input {
+  margin-top: 10px;
+  height: 56px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #cbcecc;
+  background: #fff;
+  color: #151816;
+  font-size: 16px;
+  font-weight: 500;
+}
+.student-form-fields input::placeholder { color: #808580; font-weight: 400; }
+.student-queue-count { font-size: 15px; margin-top: 14px; color: var(--student-gray); }
+.student-name-hint { font-size: 12px; line-height: 1.5; color: var(--student-gray); margin-top: 16px; }
+.student-admission-time { font-size: 11px; color: #68756d; margin-top: 14px; }
+.student-form-fields > .status { margin-top: 16px; }
+.student-enroll-submit {
+  width: 100%;
+  min-height: 62px;
+  padding: 18px;
+  margin-top: auto;
+  border-radius: 16px;
+  background: #ff542b;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.student-enroll-form::after { content: ""; height: 12px; flex-shrink: 0; }
+.student-form-fields { padding-bottom: 38px; }
+.student-enroll-form .field-error { margin: 0 0 20px; }
+.student-finished { padding: 14px 16px; background: #f0f7f2; border-radius: 12px; font-size: 13px; margin: -36px 0 28px; }
+.student-needs-qr { padding-top: 0; }
+.student-ticket-screen { flex: 1; padding: 16px 0 0; }
+.student-receipt { position: relative; text-align: center; background: #fff; border-radius: 17px 17px 0 0; padding: 24px 14px 23px; margin-bottom: 38px; }
+.student-receipt::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -11px;
+  height: 12px;
+  background: radial-gradient(circle at 10px 12px, transparent 10px, #fff 10.5px) 0 0 / 20px 12px repeat-x;
+}
+.student-ticket-label { font-size: 15px; color: var(--student-gray); }
+.student-ticket-number { font-size: clamp(58px, 19vw, 78px); line-height: 1.12; font-weight: 700; letter-spacing: -3px; margin: 4px 0 6px; overflow-wrap: anywhere; }
+.student-receipt h1 { font-size: 13px; font-weight: 400; letter-spacing: 0; line-height: 1.5; color: var(--student-gray); }
+.student-current-person { font-size: 15px; margin-top: 26px; color: var(--student-gray); }
+.student-class-caption { font-size: 11px; color: var(--student-gray); margin-top: 9px; overflow-wrap: anywhere; }
+.student-loop { width: 100%; aspect-ratio: 16 / 9; background: #30332f; border-radius: 15px; overflow: hidden; position: relative; }
+.student-loop video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.student-video-toggle { position: absolute; right: 9px; bottom: 9px; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #12231999; color: #fff; }
+.student-wait-estimate { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px 12px; font-size: 12px; line-height: 1.5; color: #5d6d64; margin-top: 16px; }
+.student-wait-estimate strong { font-weight: 500; }
+.student-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 38px; }
+.student-actions button { min-height: 90px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; padding: 12px 6px; background: #fff; color: #080b0a; border-radius: 16px; font-size: 14px; }
+.student-actions img { width: 32px; height: 32px; object-fit: contain; }
+.student-sound-row { text-align: center; margin-top: 16px; }
+.student-sound-row button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: transparent; color: #5d6d64; padding: 9px 12px; font-size: 12px; }
+.student-sound-row p { color: var(--student-gray); font-size: 10px; line-height: 1.4; }
+.student-called .student-receipt { background: transparent; padding-top: 24px; margin-bottom: 18px; }
+.student-called .student-receipt::after { display: none; }
+.student-called .student-ticket-label { text-transform: uppercase; font-size: 14px; letter-spacing: 1px; font-weight: 600; }
+.student-called .student-ticket-number { font-size: clamp(64px, 22vw, 96px); letter-spacing: -3px; margin: 16px 0; }
+.student-called .student-receipt h1 { font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -1px; color: #063b20; }
+.student-call-direction { font-size: 18px; margin-top: 14px; }
+.student-called .student-class-caption { font-size: 13px; margin-top: 16px; }
+.student-call-details { text-align: center; padding: 4px 0 20px; }
+.student-call-check { display: inline-flex; padding: 14px; border-radius: 50%; background: #ffffff66; margin-bottom: 18px; }
+.student-call-details h2 { font-size: 18px; overflow-wrap: anywhere; }
+.student-call-details p { font-size: 14px; margin-top: 8px; overflow-wrap: anywhere; }
+.student-called .student-actions { margin-top: 16px; }
+.student-called .student-actions button { background: #ffffffdf; }
+.student-called .student-sound-row button { color: #175531; }
+.student-page .connection-error { font-size: 12px; margin: 0 0 16px; flex-shrink: 0; }
+@media (min-width: 700px) {
+  .student-frame { padding-top: 28px; padding-bottom: 28px; }
+  .student-ticket-screen { padding-top: 24px; }
+  .student-enroll-heading { margin-top: 26px; }
+}
+@media (max-height: 720px) {
+  .student-nav { margin-bottom: 12px; }
+  .student-ticket-screen { padding-top: 4px; }
+  .student-receipt { padding-top: 16px; padding-bottom: 16px; margin-bottom: 30px; }
+  .student-current-person { margin-top: 16px; }
+  .student-actions { margin-top: 24px; }
+  .student-enroll-heading { margin-bottom: 42px; }
+}

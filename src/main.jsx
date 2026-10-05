@@ -53,6 +53,8 @@ import "@fontsource/golos-text/latin-500.css";
 import "@fontsource/golos-text/latin-600.css";
 import "@fontsource/golos-text/latin-700.css";
 import "./styles.css";
+import { StudentPage, WaitingLoop, studentMedia } from "./student-ui";
+import "./student.css";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -242,63 +244,38 @@ function App() {
 }
 function Home() {
   const { data, error } = useResource("/me/tickets");
+  const current = data?.tickets.filter(activeTicket) || [];
+  const past = data?.tickets.filter((ticket) => !activeTicket(ticket)) || [];
   return (
-    <Shell data={data} error={error}>
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">СТУДЕНТ</div>
-          <h1>Ваши талоны</h1>
-          <p>Очереди разных преподавателей — в одном месте.</p>
-        </div>
-      </div>
+    <StudentPage home called={current.some((ticket) => ticket.status === "called")}>
       <ErrorBox error={error} />
-      <section className="panel home-scan">
-        <span className="square-icon">
-          <QrCode size={26} />
-        </span>
-        <div>
-          <h2>Отсканируйте свежий QR</h2>
-          <p>
-            Код можно попросить у преподавателя или у одногруппника, который уже
-            стоит в очереди. Он обновляется каждые 20 секунд.
-          </p>
-        </div>
-      </section>
-      {data?.tickets.length ? (
-        <div className="queue-card-grid">
-          {data.tickets.map((t) => (
-            <a
-              key={t.id}
-              className="panel class-card"
-              href={`#/q/${t.queueId}`}
-            >
-              <div className="class-card-top">
-                <span className={`ticket-status ${t.status}`}>
-                  {statusNames[t.status]}
-                </span>
-                <span className="number-pill">{t.number}</span>
-              </div>
-              <h2>{t.queue.title}</h2>
-              <p>{t.queue.teacherName}</p>
-              <span className="muted small">
-                <MapPin size={13} /> {t.queue.room}
-              </span>
-            </a>
-          ))}
-        </div>
+      {!current.length ? (
+        <main className="student-empty">
+          {data ? <img src={studentMedia("sleeping.png")} alt="" width="92" height="95" />
+            : <LoaderCircle className="spin" size={36} />}
+          <h1>{data ? "У вас нет талонов" : error ? "Не удалось загрузить талоны" : "Ищем ваши талоны…"}</h1>
+          <p>{data ? <>Отсканируйте QR для того,<br />чтобы встать в очередь</> : "Ваши сохранённые талоны появятся здесь."}</p>
+        </main>
       ) : (
-        <section className="panel">
-          <Empty title={data ? "Вы пока не записаны" : "Загружаем талоны…"}>
-            После записи талон появится здесь и останется после перезагрузки
-            страницы в этом браузере.
-          </Empty>
-        </section>
+        <main className="student-tickets">
+          <h1>{current.some((ticket) => ticket.status === "called") ? "Вас вызывают!" : "Ваши талоны"}</h1>
+          <p className="student-subtitle">Выберите пару, чтобы следить за очередью</p>
+          {current.map((ticket) => <a key={ticket.id} className="student-ticket-link" href={`#/q/${ticket.queueId}`}>
+            <span>{ticket.status === "called" ? "Ваша очередь — подходите" : "Вы в очереди"}</span>
+            <strong>{ticket.number}</strong>
+            <h2>{ticket.queue.title}</h2>
+            <p>{ticket.queue.teacherName} · {ticket.queue.room}</p>
+            <span className="student-ticket-open">Открыть талон <ArrowUpRight size={16} /></span>
+          </a>)}
+        </main>
       )}
-      <p className="privacy-footnote">
-        Не очищайте данные сайта до конца пары. При переходе на другой адрес или
-        в другой браузер сохранённый талон не переносится автоматически.
-      </p>
-    </Shell>
+      {!!past.length && <details className="student-history">
+        <summary>Прошлые талоны · {past.length}</summary>
+        {past.map((ticket) => <a key={ticket.id} href={`#/q/${ticket.queueId}`}>
+          <span>{ticket.queue.title}<small>{statusNames[ticket.status]}</small></span><strong>{ticket.number}</strong>
+        </a>)}
+      </details>}
+    </StudentPage>
   );
 }
 function Visitor({ queueId, invite, notify }) {
@@ -324,6 +301,14 @@ function Visitor({ queueId, invite, notify }) {
     [nowTick, setNowTick] = useState(Date.now());
   const active = activeTicket(data?.mine),
     mine = data?.mine;
+  const called = active && mine.status === "called";
+  useEffect(() => {
+    if (called) {
+      setShare(false);
+      setConfirm(false);
+      navigator.vibrate?.([200, 100, 200]);
+    }
+  }, [called]);
   useEffect(() => {
     // Existing students also get a reusable name without having to retype it.
     if (mine?.name && savedStudentName(storage) === null) {
@@ -389,7 +374,7 @@ function Visitor({ queueId, invite, notify }) {
   ]);
   useEffect(() => {
     if (
-      mine?.status === "called" &&
+      called &&
       previous.current &&
       previous.current !== "called" &&
       sound &&
@@ -408,10 +393,11 @@ function Visitor({ queueId, invite, notify }) {
     }
     if (mine) previous.current = mine.status;
     document.title =
-      mine?.status === "called"
+      called
         ? "Вас вызывают! — По порядку"
         : "По порядку — очередь на пару";
-  }, [mine?.status, sound]);
+    return () => { document.title = "По порядку — очередь на пару"; };
+  }, [mine?.status, sound, called]);
   async function act(path, body) {
     setBusy(true);
     setActionError("");
@@ -438,325 +424,119 @@ function Visitor({ queueId, invite, notify }) {
     if (key === "name") rememberStudentName(storage, value);
   };
   return (
-    <Shell data={data} error={error}>
-      <a className="back-link" href="#/">
-        Все мои талоны
-      </a>
-      <ErrorBox error={error}>
-        {data ? " На экране последние полученные данные." : ""}
-      </ErrorBox>
-      <div className="page-heading">
-        <div>
-          <div className="eyebrow">
-            {data?.settings.teacherName || "ОЧЕРЕДЬ НА СДАЧУ"}
-          </div>
-          <h1>{active ? "Ваш талон" : "Запись на сдачу"}</h1>
-          <p>QR меняется. Ваше место в очереди сохраняется.</p>
-        </div>
-        {data && (
-          <Status
-            status={data.settings.status}
-            disabled={!data.settings.teacherActive}
-          />
-        )}
-      </div>
+    <StudentPage waiting={active} called={called}>
+      <ErrorBox error={error}>{data ? " Показаны последние полученные данные." : ""}</ErrorBox>
       {!data ? (
-        <div className="loading">
-          <LoaderCircle className="spin" />
-          Загружаем очередь…
-        </div>
-      ) : (
-        <div className="visitor-grid">
-          <section
-            className={`panel join-panel ${mine?.status === "called" ? "called-panel" : ""}`}
-          >
-            <div className="section-heading">
-              <span className="square-icon">
-                <GraduationCap size={22} />
-              </span>
-              <div>
-                <h2>{data.settings.title}</h2>
-                <p>
-                  <MapPin size={14} />
-                  {data.settings.room}
-                </p>
-              </div>
-              <span className="session-chip">
-                Пара {data.settings.generation}
-              </span>
-            </div>
-            {active ? (
-              <>
-                <div className="ticket-display" aria-live="polite">
-                  <div className="eyebrow">
-                    {mine.status === "called" ? "ВАС ВЫЗЫВАЮТ" : "ВАШ НОМЕР"}
-                  </div>
-                  <div className="ticket-number">{mine.number}</div>
-                  <h3>
-                    {mine.status === "called"
-                      ? "Подходите к преподавателю"
-                      : "Вы в очереди. Всё готово."}
-                  </h3>
-                  <p>
-                    {mine.name}
-                  </p>
-                </div>
-                <div className="ticket-stats">
-                  <div>
-                    <span>Перед вами</span>
-                    <strong>
-                      {mine.ahead} <small>чел.</small>
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Примерное ожидание</span>
-                    <strong>
-                      {mine.status === "called"
-                        ? "Сейчас"
-                        : mine.ahead === 0 ? "Вы следующий"
-                          : mine.estimatedMinutes == null ? "Пока нет данных"
-                          : `~ ${mine.estimatedMinutes} мин`}
-                    </strong>
-                  </div>
-                </div>
-                <Button
-                  className="wide share-qr-button"
-                  disabled={!data.canShare || !!error}
-                  onClick={() => setShare(true)}
-                >
-                  <QrCode size={20} />
-                  Показать QR одногруппнику
-                </Button>
-                <div className="ticket-help">
-                  <ShieldCheck size={18} />
-                  <span>
-                    Можно обновить страницу или закрыть QR. Ваш талон останется
-                    в этом браузере.
-                  </span>
-                </div>
-                <div className="ticket-actions">
-                  <Button
-                    tone={sound ? "soft" : "secondary"}
-                    onClick={async () => {
-                      try {
-                        if (!audio.current)
-                          audio.current = new (
-                            window.AudioContext || window.webkitAudioContext
-                          )();
-                        await audio.current.resume();
-                        setSound(!sound);
-                      } catch {
-                        setActionError("Звук недоступен в этом браузере.");
-                      }
-                    }}
-                  >
-                    <Volume2 size={17} />
-                    {sound ? "Звук включён" : "Включить звук"}
-                  </Button>
-                  <Button
-                    tone="ghost"
-                    disabled={busy || !!error}
-                    onClick={() => setConfirm(true)}
-                  >
-                    Выйти из очереди
-                  </Button>
-                </div>
-                <p className="small muted">
-                  Сигнал работает, пока браузер активен.
-                </p>
-              </>
-            ) : (
-              <>
-                {mine && (
-                  <div className="finished-message">
-                    <CheckCheck size={20} />
-                    <span>
-                      {mine.previousSession
-                        ? "Началась новая пара. Для новой записи нужен свежий QR."
-                        : mine.status === "done"
-                          ? "Работа сдана. До следующей пары!"
-                          : mine.status === "skipped"
-                            ? "Ваш номер пропущен. Для повторной записи нужен свежий QR."
-                            : "Вы вышли из очереди. Для повторной записи нужен свежий QR."}
-                    </span>
-                  </div>
-                )}
-                {redeeming ? (
-                  <div className="loading">
-                    <LoaderCircle className="spin" />
-                    Проверяем QR…
-                  </div>
-                ) : data.admission && seconds > 0 ? (
-                  <>
-                    <div className="admission-banner">
-                      <ShieldCheck size={19} />
-                      <div>
-                        <strong>QR подтверждён · осталось {seconds} с</strong>
-                        <p>
-                          Спокойно заполните форму. Новый QR сканировать не
-                          нужно. Место займётся после нажатия кнопки.
-                        </p>
-                      </div>
-                    </div>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        act("/join", {
-                          name: draft.name || "",
-                          grantId: data.admission.id,
-                        });
-                      }}
-                    >
-                      <label>
-                        Имя и фамилия
-                        <input
-                          name="name"
-                          required
-                          maxLength={60}
-                          autoComplete="name"
-                          placeholder="Например, Алина Ким"
-                          value={draft.name || ""}
-                          onChange={(e) => change("name", e.target.value)}
-                        />
-                      </label>
-                      <p className="name-memory-note">
-                        Запомним имя на этом устройстве для следующих пар.
-                        Его всегда можно изменить перед записью.
-                      </p>
-                      <div className="form-note">
-                        <ShieldCheck size={18} />
-                        <span>
-                          Имя увидит только преподаватель. На табло —
-                          только номер.
-                        </span>
-                      </div>
-                      <Button
-                        className="wide"
-                        disabled={
-                          busy ||
-                          !!error ||
-                          data.settings.status !== "open" ||
-                          !data.settings.teacherActive ||
-                          seconds <= 0
-                        }
-                      >
-                        <Plus size={18} />
-                        {busy ? "Записываем…" : "Занять место в очереди"}
-                      </Button>
-                    </form>
-                  </>
-                ) : (
-                  <div className="scan-required">
-                    <QrCode size={36} />
-                    <h3>Нужен свежий QR-код</h3>
-                    <p>
-                      Попросите преподавателя или одногруппника с активным
-                      талоном показать код на телефоне. Отсканируйте его
-                      камерой.
-                    </p>
-                    <span className="small muted">
-                      Коды действуют 20 секунд. Уже выданные талоны не истекают
-                      вместе с QR.
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-            {actionError && (
-              <p className="field-error" role="alert">
-                {actionError}
-              </p>
-            )}
+        <main className="student-empty"><LoaderCircle className="spin" size={32} /><h1>Загружаем очередь…</h1></main>
+      ) : active ? (
+        <main className="student-ticket-screen">
+          <section className="student-receipt" role={called ? "alert" : undefined} aria-live={called ? "assertive" : "off"}>
+            <p className="student-ticket-label">{called ? "Вас вызывают" : "Ваш номер"}</p>
+            <div className="student-ticket-number">{mine.number}</div>
+            <h1>{called ? "Ваша очередь!" : data.current ? "Ожидайте, сейчас идёт приём" : "Ожидайте вызова преподавателя"}</h1>
+            {called ? <p className="student-call-direction">Подходите к преподавателю</p>
+              : <p className="student-current-person">{data.current ? `Сейчас принимают: ${data.current.number}` : "Преподаватель скоро вызовет следующего"}</p>}
+            <p className="student-class-caption">{data.settings.title} · {data.settings.room}</p>
           </section>
-          <div className="visitor-aside">
-            <section className="current-public">
-              <div className="eyebrow">СЕЙЧАС ПРИНИМАЮТ</div>
-              <div className="current-number">
-                {data.current?.number || "—"}
-              </div>
-              <p>
-                {data.current
-                  ? "Этот номер уже вызван"
-                  : "Ожидайте вызова вашего номера"}
-              </p>
-              <div className="public-divider" />
-              <div className="public-stats">
-                <div>
-                  <strong>{data.stats.waiting}</strong>
-                  <span>ожидают</span>
-                </div>
-                <div>
-                  <strong>
-                    {durationLabel(data.analytics?.averageSeconds)}
-                  </strong>
-                  <span>{data.analytics?.sampleCount ? "средний приём" : "после первого приёма"}</span>
-                </div>
-              </div>
-              <p className="small muted">
-                {data.analytics?.sampleCount
-                  ? `Завершённых приёмов: ${data.analytics.sampleCount}. Оценка обновляется после каждого студента.`
-                  : "Оценка появится, когда преподаватель завершит первый приём."}
-              </p>
+          {called ? (
+            <section className="student-call-details">
+              <span className="student-call-check"><Check size={42} strokeWidth={2.5} /></span>
+              <h2>{data.settings.teacherName}</h2>
+              <p>{mine.name}, можно сдавать работу</p>
             </section>
-            <section className="panel how-it-works">
-              <h3>Одногруппник опоздал?</h3>
-              <ol>
-                <li>
-                  <span>01</span>
-                  <div>
-                    <strong>Откройте свой талон</strong>
-                    <p>Место остаётся за вами.</p>
-                  </div>
-                </li>
-                <li>
-                  <span>02</span>
-                  <div>
-                    <strong>Нажмите «Показать QR»</strong>
-                    <p>На экране появится текущий код.</p>
-                  </div>
-                </li>
-                <li>
-                  <span>03</span>
-                  <div>
-                    <strong>Дайте отсканировать</strong>
-                    <p>Одногруппник получит свой талон.</p>
-                  </div>
-                </li>
-              </ol>
-            </section>
+          ) : (
+            <>
+              <WaitingLoop />
+              <div className="student-wait-estimate" aria-label="Ожидание в очереди">
+                <span>Перед вами <strong>{mine.ahead} чел.</strong></span>
+                <span>{mine.ahead === 0 ? "Вы следующий" : mine.estimatedMinutes == null ? "Время пока неизвестно" : `Примерно ${mine.estimatedMinutes} мин`}</span>
+              </div>
+            </>
+          )}
+          <div className="student-actions">
+            <button type="button" disabled={!data.canShare || !!error} onClick={() => setShare(true)}>
+              <img src={studentMedia("heart.png")} alt="" width="32" height="32" />
+              <span>Показать QR</span>
+            </button>
+            <button type="button" disabled={busy || !!error} onClick={() => setConfirm(true)}>
+              <img src={studentMedia("heartbreak.png")} alt="" width="32" height="32" />
+              <span>Уйти с очереди</span>
+            </button>
           </div>
-        </div>
+          <div className="student-sound-row">
+            <button type="button" aria-pressed={sound} onClick={async () => {
+              try {
+                if (!audio.current) audio.current = new (window.AudioContext || window.webkitAudioContext)();
+                await audio.current.resume();
+                setSound(!sound);
+              } catch { setActionError("Звук недоступен в этом браузере."); }
+            }}><Volume2 size={16} />{sound ? "Звук включён" : "Включить звук вызова"}</button>
+            <p>Держите страницу открытой, чтобы услышать сигнал.</p>
+          </div>
+          {actionError && <p className="field-error" role="alert">{actionError}</p>}
+        </main>
+      ) : (
+        <main className="student-enroll">
+          <header className="student-enroll-heading">
+            <h1>Запись в очередь</h1>
+            <p>{data.settings.title} · {data.settings.room}</p>
+          </header>
+          {mine && <p className="student-finished" role="status">
+            {mine.previousSession ? "Началась новая пара. Для записи нужен свежий QR."
+              : mine.status === "done" ? "Работа сдана. До следующей пары!"
+              : mine.status === "skipped" ? "Ваш номер пропущен. Для новой записи отсканируйте QR."
+              : "Вы вышли из очереди. Для новой записи нужен свежий QR."}
+          </p>}
+          {redeeming ? (
+            <div className="student-empty"><LoaderCircle className="spin" /><p>Проверяем QR…</p></div>
+          ) : data.admission && seconds > 0 ? (
+            <form className="student-enroll-form" onSubmit={(event) => {
+              event.preventDefault();
+              act("/join", { name: draft.name || "", grantId: data.admission.id });
+            }}>
+              <div className="student-form-fields">
+                <label>Имя и фамилия
+                  <input name="name" required maxLength={60} autoComplete="name" placeholder="Например, Лукпанов Ануар"
+                    value={draft.name || ""} onChange={(event) => change("name", event.target.value)} />
+                </label>
+                <p className="student-queue-count">{data.stats.waiting ? `Сейчас в очереди: ${data.stats.waiting} чел.` : "В очереди пока никого. Будете первым :)"}</p>
+                <p className="student-name-hint">Имя сохраним для следующих пар. Его увидит только преподаватель.</p>
+                {(data.settings.status !== "open" || !data.settings.teacherActive) && <Status status={data.settings.status} disabled={!data.settings.teacherActive} />}
+                <p className="student-admission-time">QR подтверждён · на запись осталось {seconds} с</p>
+              </div>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+              <button className="student-enroll-submit" disabled={busy || !!error || data.settings.status !== "open" || !data.settings.teacherActive || seconds <= 0}>
+                {busy ? "Записываем…" : "Записаться :3"}
+              </button>
+            </form>
+          ) : (
+            <section className="student-empty student-needs-qr">
+              <img src={studentMedia("sleeping.png")} alt="" width="92" height="95" />
+              <h2>Нужен свежий QR</h2>
+              <p>Попросите код у преподавателя или одногруппника, который уже в очереди.</p>
+              {actionError && <p className="field-error" role="alert">{actionError}</p>}
+            </section>
+          )}
+        </main>
       )}
       {share && data && (
-        <LiveQR
-          queueId={queueId}
-          generation={data.settings.generation}
-          enabled={data.canShare && !error}
-          title={data.settings.title}
-          subtitle={data.settings.teacherName}
-          initiallyExpanded
-          onClose={() => setShare(false)}
-        />
+        <LiveQR queueId={queueId} generation={data.settings.generation} enabled={data.canShare && !error}
+          title={data.settings.title} subtitle={data.settings.teacherName} initiallyExpanded onClose={() => setShare(false)} />
       )}
       {confirm && (
         <Dialog title="Выйти из очереди?" onClose={() => setConfirm(false)}>
-          <p>
-            При повторной записи нужен свежий QR, а место будет в конце очереди.
-          </p>
+          <p>При повторной записи нужен свежий QR, а место будет в конце очереди.</p>
           <div className="dialog-actions">
-            <Button tone="secondary" onClick={() => setConfirm(false)}>
-              Остаться
-            </Button>
-            <Button tone="danger" disabled={busy} onClick={() => act("/leave")}>
-              Выйти
-            </Button>
+            <Button tone="secondary" onClick={() => setConfirm(false)}>Остаться</Button>
+            <Button tone="danger" disabled={busy} onClick={() => act("/leave")}>Выйти</Button>
           </div>
           <ErrorBox error={actionError} />
         </Dialog>
       )}
-    </Shell>
+    </StudentPage>
   );
 }
+
 function Login({ onLogin }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
