@@ -659,7 +659,7 @@ function Admin({ notify, onLogout }) {
     user = me.data?.user;
   const queues = useResource("/admin/queues", {
     admin: true,
-    enabled: !!user,
+    enabled: !!user && !user.passwordChangeSuggested,
     poll: 5000,
   });
   const [selected, setSelected] = useState(
@@ -675,14 +675,13 @@ function Admin({ notify, onLogout }) {
     [baseUrl, setBaseUrl] = useState(savedBase),
     [displayUrl, setDisplayUrl] = useState("");
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [passwordDismissed, setPasswordDismissed] = useState(false);
   const [securityRevision, setSecurityRevision] = useState(0);
-  const showPassword = user && (passwordOpen || (user.passwordChangeSuggested && !passwordDismissed));
-  function closePassword() { setPasswordOpen(false); setPasswordDismissed(true); }
-  function passwordChanged() {
+  const showPassword = user && passwordOpen;
+  function closePassword() { setPasswordOpen(false); }
+  async function passwordChanged() {
+    await me.refresh();
     closePassword();
     setSecurityRevision((value) => value + 1);
-    me.refresh();
     notify("Пароль изменён. На других устройствах потребуется войти заново.");
   }
   const qid =
@@ -697,7 +696,7 @@ function Admin({ notify, onLogout }) {
   }, [queues.data, selected]);
   const current = useResource(qid ? `/admin/queues/${qid}` : null, {
     admin: true,
-    enabled: !!qid,
+    enabled: !!qid && !!user && !user.passwordChangeSuggested,
   });
   const { data, error, refresh } = current,
     connectionError = me.error || queues.error || error;
@@ -706,7 +705,7 @@ function Admin({ notify, onLogout }) {
   }, [connectionError?.status, onLogout]);
   useEffect(() => {
     if (
-      !user ||
+      !user || user.passwordChangeSuggested ||
       storage.get("campus.link.v1") ||
       !["localhost", "127.0.0.1"].includes(location.hostname)
     )
@@ -720,10 +719,10 @@ function Admin({ notify, onLogout }) {
         }
       })
       .catch(() => {});
-  }, [!!user]);
+  }, [!!user, user?.passwordChangeSuggested]);
   useEffect(() => {
     setDisplayUrl("");
-    if (!qid || !data) return;
+    if (!qid || !data || !user || user.passwordChangeSuggested) return;
     let alive = true;
     request(`/admin/queues/${qid}/display-session`, {
       admin: true,
@@ -736,7 +735,7 @@ function Admin({ notify, onLogout }) {
     return () => {
       alive = false;
     };
-  }, [qid, data?.settings.generation, securityRevision]);
+  }, [qid, data?.settings.generation, securityRevision, user?.passwordChangeSuggested]);
   async function act(suffix, body, message, method = "POST", target = qid) {
     if (!target) return false;
     setBusy(true);
@@ -789,6 +788,15 @@ function Admin({ notify, onLogout }) {
     }
   }
   const disabled = busy || !!connectionError || !!data?.settings.endedAt;
+  if (user?.passwordChangeSuggested) return (
+    <div className="password-required-page">
+      <Brand />
+      <PasswordChange user={user} required onChanged={passwordChanged} onLogout={async () => {
+        await request("/admin/logout", { method: "POST", admin: true });
+        onLogout();
+      }} />
+    </div>
+  );
   const tickets =
     data?.tickets.filter((t) =>
       historyView
@@ -1165,7 +1173,7 @@ function Admin({ notify, onLogout }) {
           )}
         </>
       )}
-      {showPassword && <PasswordChange user={user} suggested={user.passwordChangeSuggested} onClose={closePassword} onChanged={passwordChanged} />}
+      {showPassword && <PasswordChange user={user} onClose={closePassword} onChanged={passwordChanged} />}
       {endTarget && (
         <Dialog title="Завершить очередь?" onClose={() => { if (!busy) setEndTarget(null); }}>
           <p><strong>{endTarget.title}</strong></p>
@@ -1564,7 +1572,7 @@ function Teachers({ notify, baseUrl }) {
                       setConfirm({ teacher: t, action: "password" })
                     }
                   >
-                    Новый пароль
+                    Выдать временный пароль
                   </Button>
                   <Button
                     tone={t.active ? "ghost" : "soft"}
@@ -1657,12 +1665,13 @@ function Teachers({ notify, baseUrl }) {
             <input readOnly value={credentials.user.username} />
           </label>
           <label>
-            Пароль
+            Временный пароль
             <input readOnly value={credentials.password} />
           </label>
           <p className="small muted">
             Сохраните и передайте данные преподавателю. После закрытия пароль
             повторно не показывается; при необходимости можно создать новый.
+            {" "}При входе преподаватель должен будет задать свой пароль.
           </p>
           <Button
             className="wide"
@@ -1688,7 +1697,7 @@ function Teachers({ notify, baseUrl }) {
           title={
             confirm.action === "disable"
               ? "Отключить преподавателя?"
-              : "Создать новый пароль?"
+              : "Выдать временный пароль?"
           }
           onClose={() => setConfirm(null)}
         >
@@ -1696,7 +1705,7 @@ function Teachers({ notify, baseUrl }) {
             {confirm.teacher.name}:{" "}
             {confirm.action === "disable"
               ? "вход и новые записи в его очереди будут остановлены. Существующие талоны сохранятся."
-              : "старые сессии входа завершатся. Очереди и талоны сохранятся."}
+              : "старый пароль перестанет работать, входы на других устройствах завершатся. Передайте преподавателю временный пароль: при входе он обязательно задаст свой. Очереди и талоны сохранятся."}
           </p>
           <ErrorBox error={error} />
           <div className="dialog-actions">

@@ -301,6 +301,7 @@ input::placeholder { color: #828985; }
 .queue-ended-screen small { font-size:11px; line-height:1.6; }
 .student-ended :is(button,a):focus-visible { outline:3px solid #fff; outline-offset:4px; }
 .password-intro { text-align: center; margin: 4px auto 24px; max-width: 350px; }
+.password-required-page { min-height: 100dvh; padding: 24px; background: #f2f6f5; }
 .password-mascot { position: relative; width: 96px; margin: 0 auto 14px; }
 .password-mascot img { display: block; }
 .password-mascot > span { position: absolute; right: -4px; bottom: 0; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #ff542b; background: #fff0e9; border: 3px solid white; }

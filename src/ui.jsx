@@ -84,7 +84,7 @@ export function ErrorBox({ error, children }) {
     </div>
   ) : null;
 }
-export function Dialog({ title, children, onClose }) {
+export function Dialog({ title, children, onClose, dismissible = true }) {
   const ref = useRef(null);
   useEffect(() => {
     ref.current.showModal();
@@ -93,16 +93,16 @@ export function Dialog({ title, children, onClose }) {
     <dialog
       ref={ref}
       className="dialog"
-      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onCancel={(event) => { event.preventDefault(); if (dismissible) onClose(); }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (dismissible && e.target === e.currentTarget) onClose();
       }}
     >
       <div className="dialog-head">
         <h2>{title}</h2>
-        <button className="icon-button" aria-label="Закрыть" onClick={onClose}>
+        {dismissible && <button className="icon-button" aria-label="Закрыть" onClick={onClose}>
           <X />
-        </button>
+        </button>}
       </div>
       {children}
     </dialog>

@@ -100,13 +100,11 @@ Deno.serve(async (req: Request) => {
       body = { username, _verifiedHash: hash };
     } else if (path === "/admin/password" && req.method === "POST") {
       fields(body, ["currentPassword", "newPassword"]);
-      const currentPassword = text(body.currentPassword, "Текущий пароль", 200);
       const password = text(body.newPassword, "Новый пароль", 128);
       if (password.length < 8 || password !== body.newPassword) throw new ApiError(400, "Новый пароль: от 8 до 128 символов, без пробелов по краям.");
       const context = await rpc("campus_password_context", { p_session_hash: digest(admin!) });
       const allowed = await rpc("campus_rate", { p_key: `password:${context.id}`, p_limit: 20, p_window: 900000 });
       if (!allowed) throw new ApiError(429, "Слишком много попыток. Подождите 15 минут.");
-      if (!validPassword(currentPassword, context.hash)) throw new ApiError(400, "Текущий пароль неверный.");
       if (validPassword(password, context.hash)) throw new ApiError(400, "Новый пароль должен отличаться от текущего.");
       const salt = randomBytes(16).toString("hex");
       body = { _verifiedHash: context.hash, _hash: `${salt}:${scryptSync(password, salt, 64).toString("hex")}` };

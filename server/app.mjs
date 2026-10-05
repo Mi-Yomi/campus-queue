@@ -241,17 +241,21 @@ export function createApp(options = {}) {
   app.get("/api/admin/me", (req, res) => res.json({ user: req.user }));
   app.post("/api/admin/password", (req, res) => {
     fields(req.body, ["currentPassword", "newPassword"]);
-    const currentPassword = text(req.body.currentPassword, "Текущий пароль", 200);
     const password = text(req.body.newPassword, "Новый пароль", 128);
     if (password.length < 8 || password !== req.body.newPassword)
       throw new AppError(400, "Новый пароль: от 8 до 128 символов, без пробелов по краям.");
-    res.json(store.changePassword(req.adminToken, currentPassword, password));
+    res.json(store.changePassword(req.adminToken, password));
   });
   app.post("/api/admin/logout", (req, res) => {
     store.db
       .prepare("DELETE FROM auth_sessions WHERE tokenHash=?")
       .run(digest(req.adminToken));
     res.json({ ok: true });
+  });
+  app.use("/api/admin", (req, _res, next) => {
+    if (req.user.passwordChangeSuggested)
+      throw new AppError(403, "Сначала задайте свой пароль вместо временного.");
+    next();
   });
   app.get("/api/admin/queues", (req, res) =>
     res.json({ queues: store.listQueues(req.user) }),

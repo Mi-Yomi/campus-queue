@@ -651,11 +651,10 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       return { user: safeUser(user(id)), ...(password ? { password } : {}) };
     });
   }
-  function changePassword(token, currentPassword, password) {
+  function changePassword(token, password) {
     return tx(() => {
       const actor = authenticate(token).user;
       const account = user(actor.id);
-      if (!checkPassword(currentPassword, account.passwordHash)) fail(400, "Текущий пароль неверный.");
       if (checkPassword(password, account.passwordHash)) fail(400, "Новый пароль должен отличаться от текущего.");
       db.prepare("UPDATE users SET passwordHash=?,passwordChangeSuggested=0 WHERE id=?").run(hashPassword(password), actor.id);
       db.prepare("DELETE FROM auth_sessions WHERE userId=? AND tokenHash<>?").run(actor.id, digest(token));
