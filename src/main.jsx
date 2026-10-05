@@ -8,6 +8,7 @@ import {
   GraduationCap,
   LoaderCircle,
   LogOut,
+  LockKeyhole,
   MapPin,
   Monitor,
   Pause,
@@ -56,6 +57,7 @@ import "./app-theme.css";
 import "./creator-banner.css";
 import { CreatorBanner } from "./creator-banner";
 import { AppIcon } from "./app-icon";
+import { PasswordChange } from "./password-change";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -80,6 +82,7 @@ function Shell({
   tab,
   setTab,
   onLogout,
+  onPasswordChange,
   data,
   error,
   displayUrl,
@@ -156,10 +159,16 @@ function Shell({
             </span>
           </div>
           {admin ? (
+            <>
+            <button className="sidebar-account" onClick={onPasswordChange}>
+              <LockKeyhole size={18} />
+              Сменить пароль
+            </button>
             <button className="sidebar-account" onClick={onLogout}>
               <LogOut size={18} />
               Выйти из панели
             </button>
+            </>
           ) : (
             <a className="sidebar-account" href="#/admin">
               <ShieldCheck size={18} />
@@ -665,6 +674,17 @@ function Admin({ notify, onLogout }) {
     [endTarget, setEndTarget] = useState(null),
     [baseUrl, setBaseUrl] = useState(savedBase),
     [displayUrl, setDisplayUrl] = useState("");
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordDismissed, setPasswordDismissed] = useState(false);
+  const [securityRevision, setSecurityRevision] = useState(0);
+  const showPassword = user && (passwordOpen || (user.passwordChangeSuggested && !passwordDismissed));
+  function closePassword() { setPasswordOpen(false); setPasswordDismissed(true); }
+  function passwordChanged() {
+    closePassword();
+    setSecurityRevision((value) => value + 1);
+    me.refresh();
+    notify("Пароль изменён. На других устройствах потребуется войти заново.");
+  }
   const qid =
     queues.data?.queues.find((q) => q.id === selected)?.id ||
     queues.data?.queues[0]?.id;
@@ -716,7 +736,7 @@ function Admin({ notify, onLogout }) {
     return () => {
       alive = false;
     };
-  }, [qid, data?.settings.generation]);
+  }, [qid, data?.settings.generation, securityRevision]);
   async function act(suffix, body, message, method = "POST", target = qid) {
     if (!target) return false;
     setBusy(true);
@@ -782,6 +802,7 @@ function Admin({ notify, onLogout }) {
       tab={tab}
       setTab={setTab}
       onLogout={logout}
+      onPasswordChange={() => setPasswordOpen(true)}
       data={data || me.data}
       error={connectionError}
       displayUrl={displayUrl}
@@ -1144,6 +1165,7 @@ function Admin({ notify, onLogout }) {
           )}
         </>
       )}
+      {showPassword && <PasswordChange user={user} suggested={user.passwordChangeSuggested} onClose={closePassword} onChanged={passwordChanged} />}
       {endTarget && (
         <Dialog title="Завершить очередь?" onClose={() => { if (!busy) setEndTarget(null); }}>
           <p><strong>{endTarget.title}</strong></p>

@@ -11,6 +11,62 @@ import { digest } from "../server/store.mjs";
 const password = "test-owner-password",
   passwordHash = hashPassword(password);
 const visitor = () => randomBytes(32).toString("hex");
+test("teacher changes issued password without losing the current session or student tickets", async (t) => {
+  const f = await fixture(t);
+  const teacher = await f.teacher("password_teacher");
+  assert.equal(teacher.user.passwordChangeSuggested, true);
+  const otherSession = await f.login(teacher.user.username, teacher.password);
+  const display = (await f.call(`/admin/queues/${teacher.q}/display-session`, { admin: teacher.token, method: "POST" })).body.token;
+  const student = visitor();
+  const ticket = await f.enroll(teacher.q, student, (await f.invite(teacher.q, teacher.token)).invite);
+  const body = { currentPassword: teacher.password, newPassword: "my-new-teacher-password" };
+  const change = await f.call("/admin/password", { admin: teacher.token, method: "POST", body });
+  assert.equal(change.status, 200);
+  assert.equal(change.body.user.passwordChangeSuggested, false);
+  assert.equal("passwordHash" in change.body.user, false);
+  assert.equal((await f.call("/admin/me", { admin: teacher.token })).status, 200);
+  assert.equal((await f.call("/admin/me", { admin: otherSession })).status, 401);
+  assert.equal((await f.call(`/display/queues/${teacher.q}/invite`, { display })).status, 401);
+  assert.equal((await f.call("/admin/login", { method: "POST", body: { username: teacher.user.username, password: teacher.password } })).status, 401);
+  assert.ok(await f.login(teacher.user.username, body.newPassword));
+  const tickets = (await f.call("/me/tickets", { token: student })).body.tickets;
+  assert.equal(tickets[0].id, ticket.body.mine.id);
+  assert.equal(tickets[0].status, "waiting");
+  assert.ok(await f.login());
+  const reset = await f.call(`/admin/teachers/${teacher.user.id}`, { admin: f.owner, method: "PATCH", body: { resetPassword: true } });
+  assert.equal(reset.body.user.passwordChangeSuggested, true);
+  assert.equal((await f.call("/admin/me", { admin: teacher.token })).status, 401);
+  const login = await f.call("/admin/login", { method: "POST", body: { username: teacher.user.username, password: reset.body.password } });
+  assert.equal(login.body.user.passwordChangeSuggested, true);
+});
+test("password change rejects unauthenticated, incorrect, unchanged and malformed requests", async (t) => {
+  const f = await fixture(t);
+  const teacher = await f.teacher("password_validation");
+  const valid = { currentPassword: teacher.password, newPassword: "a-valid-new-password" };
+  assert.equal((await f.call("/admin/password", { method: "POST", body: valid })).status, 401);
+  for (const body of [
+    { ...valid, currentPassword: "wrong-password" },
+    { ...valid, newPassword: teacher.password },
+    { ...valid, newPassword: "short" },
+    { ...valid, newPassword: "long".repeat(40) },
+    { ...valid, newPassword: " spaced-password " },
+    { ...valid, newPassword: "line\nbreak" },
+    { ...valid, userId: "owner" },
+    { ...valid, _hash: "injected" },
+  ]) {
+    assert.equal((await f.call("/admin/password", { admin: teacher.token, method: "POST", body })).status, 400);
+  }
+  assert.equal((await f.call("/admin/me", { admin: teacher.token })).body.user.passwordChangeSuggested, true);
+  assert.ok(await f.login(teacher.user.username, teacher.password));
+});
+test("concurrent changes cannot reuse an already replaced password", async (t) => {
+  const f = await fixture(t);
+  const teacher = await f.teacher("password_race");
+  const results = await Promise.all(["new-password-first", "new-password-second"].map(newPassword =>
+    f.call("/admin/password", { admin: teacher.token, method: "POST", body: { currentPassword: teacher.password, newPassword } })
+  ));
+  assert.deepEqual(results.map(r => r.status).sort(), [200, 400]);
+});
 function temporary(t) {
   const dir = mkdtempSync(join(tmpdir(), "campusqueue-v2-"));
   t.after(() => {
@@ -111,7 +167,7 @@ async function fixture(
       body: { title: `Пара ${name}`, room: "302" },
     });
     assert.equal(q.status, 201);
-    return { user: created.body.user, token, q: q.body.queue.id };
+    return { user: created.body.user, token, q: q.body.queue.id, password: created.body.password };
   };
   return {
     store,

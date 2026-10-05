@@ -114,7 +114,7 @@ export function createApp(options = {}) {
       }),
     );
     app.use(
-      "/api/admin/login",
+      ["/api/admin/login", "/api/admin/password"],
       rateLimit({
         windowMs: 15 * 60_000,
         limit: 20,
@@ -239,6 +239,14 @@ export function createApp(options = {}) {
   });
   app.use("/api/admin", auth);
   app.get("/api/admin/me", (req, res) => res.json({ user: req.user }));
+  app.post("/api/admin/password", (req, res) => {
+    fields(req.body, ["currentPassword", "newPassword"]);
+    const currentPassword = text(req.body.currentPassword, "Текущий пароль", 200);
+    const password = text(req.body.newPassword, "Новый пароль", 128);
+    if (password.length < 8 || password !== req.body.newPassword)
+      throw new AppError(400, "Новый пароль: от 8 до 128 символов, без пробелов по краям.");
+    res.json(store.changePassword(req.adminToken, currentPassword, password));
+  });
   app.post("/api/admin/logout", (req, res) => {
     store.db
       .prepare("DELETE FROM auth_sessions WHERE tokenHash=?")

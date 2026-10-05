@@ -7,7 +7,7 @@ import {
   timingSafeEqual,
   randomUUID,
 } from "node:crypto";
-import { newToken, newPassword, hashPassword } from "./auth.mjs";
+import { newToken, newPassword, hashPassword, checkPassword } from "./auth.mjs";
 import { serviceAnalytics, estimateMinutes } from "../src/queue-analytics.mjs";
 
 export const digest = (value) =>
@@ -116,6 +116,11 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       db.exec("ALTER TABLE queues ADD COLUMN endedAt TEXT; PRAGMA user_version=3;");
     });
   }
+  if (schema < 4) {
+    tx(() => {
+      db.exec("ALTER TABLE users ADD COLUMN passwordChangeSuggested INTEGER NOT NULL DEFAULT 0; UPDATE users SET passwordChangeSuggested=1 WHERE role='teacher'; PRAGMA user_version=4;");
+    });
+  }
   const secret = db
     .prepare("SELECT value FROM app_meta WHERE key='invite_secret'")
     .get().value;
@@ -127,6 +132,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
           name: row.name,
           role: row.role,
           active: !!row.active,
+          passwordChangeSuggested: !!row.passwordChangeSuggested,
           createdAt: row.createdAt,
         }
       : null;
@@ -606,7 +612,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       fail(409, "Этот логин уже занят.");
     const password = newPassword(),
       id = randomUUID();
-    db.prepare("INSERT INTO users VALUES(?,?,?,?,?,?,?)").run(
+    db.prepare("INSERT INTO users(id,username,name,role,passwordHash,active,createdAt,passwordChangeSuggested) VALUES(?,?,?,?,?,?,?,1)").run(
       id,
       username,
       name,
@@ -631,7 +637,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
         );
       if (resetPassword) {
         password = newPassword();
-        db.prepare("UPDATE users SET passwordHash=? WHERE id=?").run(
+        db.prepare("UPDATE users SET passwordHash=?,passwordChangeSuggested=1 WHERE id=?").run(
           hashPassword(password),
           id,
         );
@@ -643,6 +649,17 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
           "UPDATE admission_grants SET expiresAt=0 WHERE queueId IN (SELECT id FROM queues WHERE ownerId=?) AND consumedTicketId IS NULL",
         ).run(id);
       return { user: safeUser(user(id)), ...(password ? { password } : {}) };
+    });
+  }
+  function changePassword(token, currentPassword, password) {
+    return tx(() => {
+      const actor = authenticate(token).user;
+      const account = user(actor.id);
+      if (!checkPassword(currentPassword, account.passwordHash)) fail(400, "Текущий пароль неверный.");
+      if (checkPassword(password, account.passwordHash)) fail(400, "Новый пароль должен отличаться от текущего.");
+      db.prepare("UPDATE users SET passwordHash=?,passwordChangeSuggested=0 WHERE id=?").run(hashPassword(password), actor.id);
+      db.prepare("DELETE FROM auth_sessions WHERE userId=? AND tokenHash<>?").run(actor.id, digest(token));
+      return { user: safeUser(user(actor.id)) };
     });
   }
   return {
@@ -670,6 +687,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     endQueue,
     createTeacher,
     changeTeacher,
+    changePassword,
     close: () => db.close(),
   };
 }

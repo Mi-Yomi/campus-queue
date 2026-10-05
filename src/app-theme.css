@@ -300,3 +300,16 @@ input::placeholder { color: #828985; }
 .ended-home { display:block; width:100%; border-radius:18px; padding:20px; background:#fff; color:#a4212d; font-weight:600; margin:42px 0 16px; }
 .queue-ended-screen small { font-size:11px; line-height:1.6; }
 .student-ended :is(button,a):focus-visible { outline:3px solid #fff; outline-offset:4px; }
+.password-intro { text-align: center; margin: 4px auto 24px; max-width: 350px; }
+.password-mascot { position: relative; width: 96px; margin: 0 auto 14px; }
+.password-mascot img { display: block; }
+.password-mascot > span { position: absolute; right: -4px; bottom: 0; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; color: #ff542b; background: #fff0e9; border: 3px solid white; }
+.password-intro h3 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.6px; }
+.password-intro p { color: #777b78; font-size: 14px; line-height: 1.55; margin: 0; }
+.password-form { display: grid; gap: 14px; }
+.password-form label { display: grid; gap: 8px; font-size: 14px; font-weight: 500; }
+.password-form input:not([type="checkbox"]):not([hidden]) { width: 100%; min-height: 48px; }
+.password-form .password-hint { margin: -8px 0 0; color: #777b78; font-size: 12px; }
+.password-form .password-visibility { display: flex; align-items: center; gap: 9px; font-weight: 400; }
+.password-visibility input { width: 18px; height: 18px; accent-color: #ff542b; }
+.password-form .button { width: 100%; }
