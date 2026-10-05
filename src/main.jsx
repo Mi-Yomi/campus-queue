@@ -20,7 +20,6 @@ import {
   SkipForward,
   Ticket,
   Users,
-  Volume2,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -58,6 +57,7 @@ import "./creator-banner.css";
 import { CreatorBanner } from "./creator-banner";
 import { AppIcon } from "./app-icon";
 import { PasswordChange } from "./password-change";
+import { useStudentSound, StudentAudio, StudentSound } from "./student-sound";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -301,15 +301,13 @@ function Visitor({ queueId, invite, notify }) {
     [],
   );
   const handled = useRef(null),
-    audio = useRef(null),
-    previous = useRef(null),
-    [sound, setSound] = useState(false),
     [nowTick, setNowTick] = useState(Date.now());
   const ended = !!data?.settings.endedAt;
   const active = !ended && activeTicket(data?.mine),
     mine = data?.mine;
   const called = active && mine.status === "called";
   const completed = mine?.status === "done" && !mine.previousSession;
+  const sound = useStudentSound(called ? `${mine.id}:${mine.calledAt}` : null);
   useEffect(() => {
     if (called || ended || completed) {
       setShare(false);
@@ -383,31 +381,12 @@ function Visitor({ queueId, invite, notify }) {
     refresh,
   ]);
   useEffect(() => {
-    if (
-      called &&
-      previous.current &&
-      previous.current !== "called" &&
-      sound &&
-      audio.current
-    ) {
-      const ctx = audio.current,
-        osc = ctx.createOscillator(),
-        gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 740;
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.7);
-    }
-    if (mine) previous.current = mine.status;
     document.title =
       called
         ? "Вас вызывают! — РИТМ"
         : completed ? "Работа сдана! — РИТМ" : "РИТМ — очередь на пару";
     return () => { document.title = "РИТМ — очередь на пару"; };
-  }, [mine?.status, sound, called, completed]);
+  }, [called, completed]);
   async function act(path, body) {
     setBusy(true);
     setActionError("");
@@ -473,16 +452,7 @@ function Visitor({ queueId, invite, notify }) {
               <span>Уйти с очереди</span>
             </button>
           </div>
-          <div className="student-sound-row">
-            <button type="button" aria-pressed={sound} onClick={async () => {
-              try {
-                if (!audio.current) audio.current = new (window.AudioContext || window.webkitAudioContext)();
-                await audio.current.resume();
-                setSound(!sound);
-              } catch { setActionError("Звук недоступен в этом браузере."); }
-            }}><Volume2 size={16} />{sound ? "Звук включён" : "Включить звук вызова"}</button>
-            <p>Держите страницу открытой, чтобы услышать сигнал.</p>
-          </div>
+          <StudentSound sound={sound} />
           {actionError && <p className="field-error" role="alert">{actionError}</p>}
         </main>
       ) : (
@@ -501,6 +471,7 @@ function Visitor({ queueId, invite, notify }) {
           ) : data.admission && seconds > 0 ? (
             <form className="student-enroll-form" onSubmit={(event) => {
               event.preventDefault();
+              sound.control.enableOnJoin();
               act("/join", { name: draft.name || "", grantId: data.admission.id });
             }}>
               <div className="student-form-fields">
@@ -528,6 +499,7 @@ function Visitor({ queueId, invite, notify }) {
           )}
         </main>
       )}
+      <StudentAudio sound={sound} />
       {share && data && active && (
         <LiveQR queueId={queueId} generation={data.settings.generation} enabled={data.canShare && !error}
           title={data.settings.title} subtitle={data.settings.teacherName} initiallyExpanded onClose={() => setShare(false)} />
