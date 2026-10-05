@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { ListOrdered, LoaderCircle, Maximize, Users, WifiOff, X } from "lucide-react";
+import { LoaderCircle, Maximize, WifiOff, X } from "lucide-react";
 import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
 import { queueBase } from "./queue-links.mjs";
 import { roundedQrSvg } from "./qr-art.mjs";
+import { AppIcon } from "./app-icon";
 
 export const time = (value) =>
   new Date(value).toLocaleTimeString("ru-RU", {
@@ -27,7 +28,7 @@ export function Brand() {
   return (
     <div className="brand">
       <span className="brand-mark">
-        <ListOrdered size={23} />
+        <AppIcon name="ticket" />
       </span>
       <span>
         по порядку<span className="brand-caption">очередь на пару</span>
@@ -61,11 +62,11 @@ export function Status({ status, disabled }) {
     </span>
   );
 }
-export function Empty({ title, children, icon: Icon = Users }) {
+export function Empty({ title, children, icon: Icon }) {
   return (
     <div className="empty">
       <span>
-        <Icon size={26} />
+        {Icon ? <Icon size={26} /> : <img src={`${import.meta.env.BASE_URL}media/sleeping.png`} width="64" height="64" alt="" />}
       </span>
       <h3>{title}</h3>
       <p>{children}</p>

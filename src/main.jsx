@@ -3,12 +3,9 @@ import { createRoot } from "react-dom/client";
 import {
   ArrowUpRight,
   Check,
-  CheckCheck,
   Clock3,
   Copy,
   GraduationCap,
-  LayoutDashboard,
-  ListOrdered,
   LoaderCircle,
   LogOut,
   MapPin,
@@ -55,6 +52,8 @@ import "@fontsource/golos-text/latin-700.css";
 import "./styles.css";
 import { StudentPage, WaitingLoop, studentMedia } from "./student-ui";
 import "./student.css";
+import "./app-theme.css";
+import { AppIcon } from "./app-icon";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -103,7 +102,7 @@ function Shell({
                 className={tab === "queue" ? "active" : ""}
                 onClick={() => setTab("queue")}
               >
-                <LayoutDashboard size={19} />
+                <AppIcon name="ticket" />
                 Мои очереди
               </button>
               <button
@@ -125,7 +124,7 @@ function Shell({
                   className={tab === "teachers" ? "active" : ""}
                   onClick={() => setTab("teachers")}
                 >
-                  <Users size={19} />
+                  <AppIcon name="teacher" />
                   Преподаватели
                 </button>
               )}
@@ -148,12 +147,12 @@ function Shell({
         </nav>
         <div className="sidebar-bottom">
           <div className="sidebar-note">
-            <ShieldCheck size={21} />
+            <AppIcon name="teacher" />
             <span>
               {admin ? user?.name : "Талон остаётся с вами"}
               <span>
                 {admin
-                  ? "Очереди преподавателей независимы."
+                  ? (user?.role === "owner" ? "Владелец системы" : "Преподаватель")
                   : "Обновление QR не меняет ваше место в очереди."}
               </span>
             </span>
@@ -547,7 +546,7 @@ function Login({ onLogin }) {
       </a>
       <div className="panel login-panel">
         <span className="login-symbol">
-          <ShieldCheck size={30} />
+          <AppIcon name="teacher" />
         </span>
         <div className="eyebrow">ПРЕПОДАВАТЕЛЬ</div>
         <h1>
@@ -555,7 +554,7 @@ function Login({ onLogin }) {
           <br />
           Ваша очередь.
         </h1>
-        <p>Войдите с аккаунтом, который выдал владелец системы.</p>
+        <p>Войдите, чтобы открыть запись и принимать работы.</p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -631,13 +630,13 @@ function AdminGate({ notify }) {
     <Login onLogin={setToken} />
   );
 }
-function Metric({ icon: Icon, label, value, unit, detail, color }) {
+function Metric({ artwork, label, value, unit, detail, color }) {
   return (
     <section className="panel metric">
       <div className="metric-title">
         <span>{label}</span>
         <span className={`metric-icon ${color}`}>
-          <Icon size={19} />
+          <AppIcon name={artwork} />
         </span>
       </div>
       <strong>
@@ -875,22 +874,22 @@ function Admin({ notify, onLogout }) {
             <>
               <div className="metrics">
                 <Metric
-                  icon={Users}
+                  artwork="ticket"
                   label="В очереди"
                   value={data.stats.waiting}
                   detail="ждут своего вызова"
                   color="purple"
                 />
                 <Metric
-                  icon={CheckCheck}
+                  artwork="teacher"
                   label="Уже сдали"
                   value={data.stats.completed}
                   detail="за текущую пару"
                   color="green"
                 />
                 <Metric
-                  icon={Clock3}
-                  label="Ожидание в конце очереди"
+                  artwork="clock"
+                  label="Ожидание последнего"
                   value={
                     estimateMinutes(data.stats.waiting + (data.current ? 1 : 0), data.analytics) ?? "—"
                   }
@@ -899,15 +898,16 @@ function Admin({ notify, onLogout }) {
                   color="orange"
                 />
               </div>
-              <p className="small muted">
-                {data.analytics?.sampleCount
+              <p className="analytics-note">
+                <Clock3 size={16} />
+                <span>{data.analytics?.sampleCount
                   ? `Средний приём: ${durationLabel(data.analytics.averageSeconds)} · Завершённых приёмов: ${data.analytics.sampleCount}.`
                   : "Пока нет завершённых приёмов — среднее время ещё неизвестно."}
-                {" "}Время считается от вызова до «Завершить приём». Пропуски и отмены не учитываются.
+                {" "}Пропуски и отмены не учитываются.</span>
               </p>
               <div className="admin-grid">
                 <div>
-                  <section className="admin-current">
+                  <section className={`admin-current ${data.current ? "is-serving" : ""}`}>
                     <div className="current-top">
                       <span className="eyebrow">СЕЙЧАС НА ПРИЁМЕ</span>
                       <span className="current-tag">
@@ -916,7 +916,7 @@ function Admin({ notify, onLogout }) {
                     </div>
                     <div className="current-person">
                       <span className="admin-number">
-                        {data.current?.number || "—"}
+                        {data.current?.number || <AppIcon name="ticket" />}
                       </span>
                       <div>
                         <h2>{data.current?.name || "Готовы принимать?"}</h2>
@@ -1303,7 +1303,7 @@ function Settings({ data, act, disabled, startNew }) {
       </section>
       <section className="panel new-session">
         <span className="square-icon">
-          <GraduationCap size={22} />
+          <AppIcon name="teacher" />
         </span>
         <h2>Следующая пара</h2>
         <p>
@@ -1421,7 +1421,7 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
           ) : <Button>Сохранить адрес</Button>}
         </form>
         <ErrorBox error={error} />
-        <div className="qr-instructions">
+        {!cloudEnabled && <div className="qr-instructions">
           <Wifi size={21} />
           <div>
             <h3>Для локальной проверки</h3>
@@ -1430,7 +1430,7 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
               на телефоне ведёт на сам телефон.
             </p>
           </div>
-        </div>
+        </div>}
         <div className="security-note">
           <ShieldCheck size={20} />
           <div>
@@ -1494,7 +1494,7 @@ function Teachers({ notify, baseUrl }) {
             {resource.data.teachers.map((t) => (
               <article className="teacher-row" key={t.id}>
                 <span className="square-icon">
-                  <GraduationCap size={23} />
+                  <AppIcon name="teacher" />
                 </span>
                 <div className="teacher-info">
                   <h3>{t.name}</h3>
@@ -1674,7 +1674,7 @@ function Screen({ queueId, displayToken }) {
   const { data, error } = useResource(`/queues/${queueId}`);
   const [baseUrl] = useState(savedBase);
   return (
-    <div className="screen-page">
+    <div className={`screen-page ${data?.current && !error ? "screen-serving" : ""}`}>
       <header>
         <a href="#/" className="brand-link">
           <Brand />
