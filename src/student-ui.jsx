@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Pause, Play } from "lucide-react";
 import { Brand } from "./ui";
+import { CreatorBanner } from "./creator-banner";
 
 export const studentMedia = (file) => `${import.meta.env.BASE_URL}media/${file}`;
 
@@ -26,6 +27,7 @@ export function StudentPage({ children, waiting = false, called = false, home = 
           <Brand compact />
         </nav>}
         {children}
+        {home && !called && <CreatorBanner className="student-home-creator" />}
         {home && <footer className="student-footer"><a href="#/admin">Вход преподавателя</a></footer>}
       </div>
     </div>

@@ -53,6 +53,8 @@ import "./styles.css";
 import { StudentPage, WaitingLoop, studentMedia } from "./student-ui";
 import "./student.css";
 import "./app-theme.css";
+import "./creator-banner.css";
+import { CreatorBanner } from "./creator-banner";
 import { AppIcon } from "./app-icon";
 
 function savedBase() {
@@ -541,9 +543,7 @@ function Login({ onLogin }) {
     [busy, setBusy] = useState(false);
   return (
     <div className="login-page">
-      <a href="#/" className="brand-link">
-        <Brand />
-      </a>
+      <CreatorBanner className="login-creator-banner" />
       <div className="panel login-panel">
         <span className="login-symbol">
           <AppIcon name="teacher" />
