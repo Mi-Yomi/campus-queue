@@ -534,10 +534,15 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       ).run(stamp(), row.id);
     });
   }
-  function next(id) {
+  function next(id, currentTicketId) {
     return tx(() => {
       const q = queue(id);
       if (q.endedAt) fail(410, "Очередь завершена.");
+      if (currentTicketId) {
+        const finished = db.prepare("UPDATE queue_tickets SET status='done',finishedAt=? WHERE id=? AND queueId=? AND generation=? AND status='called'")
+          .run(stamp(), currentTicketId, id, q.generation);
+        if (!finished.changes) fail(409, "Текущий студент уже изменился. Обновите очередь.");
+      }
       if (
         db
           .prepare(
@@ -551,7 +556,10 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
           "SELECT id FROM queue_tickets WHERE queueId=? AND generation=? AND status='waiting' ORDER BY seq LIMIT 1",
         )
         .get(id, q.generation);
-      if (!row) fail(409, "Очередь пока пуста.");
+      if (!row) {
+        if (currentTicketId) return;
+        fail(409, "Очередь пока пуста.");
+      }
       db.prepare(
         "UPDATE queue_tickets SET status='called',calledAt=? WHERE id=?",
       ).run(stamp(), row.id);

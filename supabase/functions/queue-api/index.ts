@@ -126,6 +126,9 @@ Deno.serve(async (req: Request) => {
       body.grantId = text(body.grantId, "Допуск", 80);
     } else if (/^\/queues\/[^/]+\/redeem$/.test(path) && req.method === "POST") {
       fields(body, ["invite"]); body.invite = text(body.invite, "QR", 2000);
+    } else if (/^\/admin\/queues\/[^/]+\/next$/.test(path) && req.method === "POST") {
+      fields(body, ["currentTicketId"]);
+      if ("currentTicketId" in body) body.currentTicketId = text(body.currentTicketId, "Текущий талон", 80);
     } else if (/^\/admin\/queues\/[^/]+\/tickets\/[^/]+\/finish$/.test(path) && req.method === "POST") {
       fields(body, ["status"]); if (!["done", "skipped"].includes(String(body.status))) throw new ApiError(400, "Некорректный статус талона.");
     } else if (/^\/admin\/queues\/[^/]+\/end$/.test(path) && req.method === "POST") {

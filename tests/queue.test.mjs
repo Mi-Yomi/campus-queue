@@ -11,6 +11,32 @@ import { digest } from "../server/store.mjs";
 const password = "test-owner-password",
   passwordHash = hashPassword(password);
 const visitor = () => randomBytes(32).toString("hex");
+test("advance completes the displayed ticket, calls FIFO once and measures actual service time", async (t) => {
+  const f = await fixture(t);
+  const students = [visitor(), visitor(), visitor()];
+  const tickets = [];
+  for (const token of students) tickets.push((await f.enroll("legacy", token)).body.mine);
+  await f.call("/admin/queues/legacy/next", {admin:f.owner,method:"POST"});
+  f.clock.value += 7 * 60_000;
+  const options = {admin:f.owner,method:"POST",body:{currentTicketId:tickets[0].id}};
+  const results = await Promise.all([f.call("/admin/queues/legacy/next",options),f.call("/admin/queues/legacy/next",options)]);
+  assert.deepEqual(results.map(r => r.status).sort(), [200,409]);
+  const state = (await f.call("/admin/queues/legacy",{admin:f.owner})).body;
+  assert.equal(state.current.id,tickets[1].id);
+  assert.equal(state.stats.completed,1);
+  assert.equal(state.stats.waiting,1);
+  assert.equal(state.analytics.averageSeconds,420);
+  assert.equal((await f.call("/queues/legacy",{token:students[0]})).body.mine.status,"done");
+  assert.equal((await f.call("/queues/legacy",{token:students[1]})).body.mine.status,"called");
+  assert.equal((await f.call("/admin/queues/legacy/next",{...options,body:{currentTicketId:tickets[2].id}})).status,409);
+  await f.call("/admin/queues/legacy/next",{...options,body:{currentTicketId:tickets[1].id}});
+  const last=await f.call("/admin/queues/legacy/next",{...options,body:{currentTicketId:tickets[2].id}});
+  assert.equal(last.status,200);
+  assert.equal(last.body.current,null);
+  assert.equal(last.body.stats.completed,3);
+  assert.equal(last.body.settings.status,"open");
+  assert.equal((await f.call("/admin/queues/legacy/next",{...options,body:{currentTicketId:tickets[2].id}})).status,409);
+});
 test("teacher changes password without the old password and without losing the current session or student tickets", async (t) => {
   const f = await fixture(t);
   const teacher = await f.teacher("password_teacher");

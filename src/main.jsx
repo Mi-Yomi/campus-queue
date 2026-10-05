@@ -745,13 +745,13 @@ function Admin({ notify, onLogout }) {
     setBusy(true);
     setActionError("");
     try {
-      await request(`/admin/queues/${target}${suffix}`, {
+      const result = await request(`/admin/queues/${target}${suffix}`, {
         admin: true,
         method,
         body,
       });
       await Promise.all([refresh(), queues.refresh()]);
-      if (message) notify(message);
+      if (message) notify(typeof message === "function" ? message(result) : message);
       return true;
     } catch (e) {
       setActionError(e.message);
@@ -954,14 +954,14 @@ function Admin({ notify, onLogout }) {
                             disabled={disabled}
                             onClick={() =>
                               act(
-                                `/tickets/${data.current.id}/finish`,
-                                { status: "done" },
-                                "Сдача завершена.",
+                                "/next",
+                                { currentTicketId: data.current.id },
+                                (result) => result.current ? "Следующий студент вызван." : "Приём завершён. Ожидающих студентов нет.",
                               )
                             }
                           >
-                            <Check size={18} />
-                            Завершить приём
+                            <Play size={18} />
+                            Вызвать следующего
                           </Button>
                           <Button
                             tone="transparent"

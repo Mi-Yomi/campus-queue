@@ -277,7 +277,10 @@ export function createApp(options = {}) {
     res.json(store.snapshot(req.params.queueId, undefined, true));
   });
   app.post("/api/admin/queues/:queueId/next", (req, res) => {
-    store.next(req.params.queueId);
+    fields(req.body ?? {}, ["currentTicketId"]);
+    const currentTicketId = req.body?.currentTicketId === undefined ? undefined
+      : text(req.body.currentTicketId, "Текущий талон", 80);
+    store.next(req.params.queueId, currentTicketId);
     res.json(store.snapshot(req.params.queueId, undefined, true));
   });
   app.post("/api/admin/queues/:queueId/tickets/:id/finish", (req, res) => {
