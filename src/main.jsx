@@ -61,6 +61,7 @@ import { CreatorBanner } from "./creator-banner";
 import { AppIcon } from "./app-icon";
 import { PasswordChange } from "./password-change";
 import { useStudentSound, StudentSound } from "./student-sound";
+import { StudentPush, RestoreTicket } from "./student-push";
 import { StudentRoster } from "./student-roster";
 import { ConnectionNotice } from "./connection-notice";
 import { ManualEnrollment } from "./manual-enrollment";
@@ -282,6 +283,7 @@ function Home() {
           </a>)}
         </main>
       )}
+      {!current.length && data && <RestoreTicket />}
       {!!past.length && <details className="student-history">
         <summary>Прошлые талоны · {past.length}</summary>
         {past.map((ticket) => <a key={ticket.id} href={`#/q/${ticket.queueId}`}>
@@ -472,6 +474,7 @@ function Visitor({ queueId, invite, notify }) {
               <span>Уйти с очереди</span>
             </button>
           </div>
+          <StudentPush />
           <StudentSound sound={sound} />
           {actionError && <p className="field-error" role="alert">{actionError}</p>}
           <StudentRoster roster={data.roster} mine={mine} refreshing={data.rosterNeedsRefresh} />

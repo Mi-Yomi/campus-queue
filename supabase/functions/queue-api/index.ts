@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
+import { validateSubscription, validPushEndpoint } from "../_shared/push-validation.mjs";
 
 const url = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -89,6 +90,34 @@ Deno.serve(async (req: Request) => {
       const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       const allowed = await rpc("campus_rate", { p_key: `${login ? "login" : "write"}:${digest(ip)}`, p_limit: login ? 40 : 1000, p_window: login ? 900000 : 60000 });
       if (!allowed) throw new ApiError(429, login ? "Слишком много попыток входа. Подождите 15 минут." : "Слишком много запросов. Подождите минуту.");
+    }
+    if (path.startsWith("/push/")) {
+      if (!visitor) throw new ApiError(400, "Не удалось распознать браузер.");
+      const action = path.slice(6);
+      if ((action === "config" && req.method !== "GET") ||
+          (action !== "config" && req.method !== "POST") ||
+          !["config", "subscribe", "unsubscribe", "status", "transfer-create", "transfer-claim"].includes(action))
+        throw new ApiError(404, "Такого метода API нет.");
+      if (action === "subscribe") {
+        fields(body, ["subscription"]);
+        try { body.subscription = await validateSubscription(body.subscription); }
+        catch (error) { throw new ApiError(400, error instanceof Error ? error.message : "Некорректная подписка."); }
+      } else if (action === "unsubscribe" || action === "status") {
+        fields(body, ["endpoint"]);
+        if (!validPushEndpoint(body.endpoint)) throw new ApiError(400, "Некорректная подписка.");
+      } else if (action === "transfer-claim") {
+        fields(body, ["code"]);
+        if (typeof body.code !== "string" || !/^[A-F0-9]{16}$/.test(body.code)) throw new ApiError(400, "Введите 16 символов кода переноса.");
+      } else fields(body, []);
+      if (action.startsWith("transfer-")) {
+        const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+        const allowed = await rpc("campus_rate", { p_key: `push-transfer:${action}:${digest(visitor)}`, p_limit: 10, p_window: 600000 });
+        if (!allowed) throw new ApiError(429, "Слишком много попыток переноса. Попробуйте через 10 минут.");
+        if (action === "transfer-claim" && !await rpc("campus_rate", { p_key: `push-transfer-ip:${digest(ip)}`, p_limit: 200, p_window: 600000 }))
+          throw new ApiError(429, "Слишком много попыток переноса. Попробуйте через 10 минут.");
+      }
+      if (action === "transfer-create") body = { token: visitor };
+      return respond(await rpc("campus_push_api", { p_action: action, p_visitor_hash: digest(visitor), p_body: body }));
     }
     if (login) {
       fields(body, ["username", "password"]);

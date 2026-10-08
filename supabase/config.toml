@@ -4,3 +4,9 @@ project_id = "campus-queue"
 # Opaque teacher sessions and visitor capabilities are checked by the API.
 verify_jwt = false
 entrypoint = "./functions/queue-api/index.ts"
+
+[functions.queue-push]
+# Internal random Vault key is verified before any job or VAPID secret is read.
+verify_jwt = false
+entrypoint = "./functions/queue-push/index.ts"
+import_map = "./functions/queue-push/deno.json"

@@ -24,7 +24,7 @@ export function StudentSound({ sound }) {
     {sound.enabled && <button type="button" className="student-sound-preview" disabled={sound.busy}
       onClick={sound.control.preview}>Послушать</button>}
     <p>{sound.enabled ? "При вызове прозвучит короткий сигнал." : "Включите звук, чтобы услышать свой вызов."}</p>
-    <p>Оставьте страницу открытой и экран включённым.</p>
+    <p>Для звука на этой странице держите её открытой и экран включённым.</p>
     {sound.error && <p className="field-error" role="status">{sound.error}</p>}
   </div>;
 }

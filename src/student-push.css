@@ -1,0 +1,25 @@
+.student-push { text-align: center; padding: 22px 0 8px; }
+.student-push > button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 20px; border: 0; border-radius: 16px; background: #fff0ea; color: #be3518; font: inherit; font-weight: 600; cursor: pointer; }
+.student-push > button[aria-pressed="true"] { background: #e1f5e9; color: #267446; }
+.student-push > button:disabled { opacity: .6; cursor: wait; }
+.student-push p, .student-push small { display: block; font-size: 12px; color: #737d78; line-height: 1.5; margin: 10px 0 0; }
+.student-push small { margin-top: 4px; }
+.student-called .student-push > p, .student-called .student-push > small { color: white; }
+.push-guide { display: flex; flex-direction: column; gap: 20px; text-align: left; }
+.push-mascot { object-fit: contain; align-self: center; margin: -8px 0 -18px; }
+.push-guide p { font-size: 14px; line-height: 1.55; margin: 0; color: #6a726e; }
+.push-guide .push-guide-intro { text-align: center; }
+.push-guide ol { padding: 0; margin: 0; list-style: none; display: grid; gap: 20px; }
+.push-guide li { display: flex; align-items: flex-start; gap: 14px; }
+.push-guide li > span { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; background: #fff0e9; color: #ef512b; }
+.push-guide strong { display: block; font-size: 15px; margin-bottom: 5px; color: #202923; }
+.push-guide small { color: #777e79; font-size: 12px; line-height: 1.5; }
+.push-transfer-backup { padding: 17px; border-radius: 18px; background: #f2f6f5; display: grid; gap: 10px; }
+.push-transfer-backup code { font: 600 20px/1.4 monospace; text-align: center; white-space: nowrap; color: #28372e; }
+.push-copy, .restore-ticket > button { border: 0; background: transparent; color: #b74023; font: inherit; font-size: 13px; cursor: pointer; }
+.push-copy { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.restore-ticket { text-align: center; margin: 0 0 24px; }
+.push-guide input { width: 100%; margin-top: 10px; font-family: monospace; }
+.push-guide .field-error, .student-push .field-error { color: #ad2929; }
+.student-called .student-push .field-error { background: white; border-radius: 12px; padding: 10px; }
+@media(max-width: 360px) { .push-transfer-backup code { font-size: 17px; } }

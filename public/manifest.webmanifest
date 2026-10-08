@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "РИТМ — очередь на пару",
+  "short_name": "РИТМ",
+  "description": "Ваш талон и уведомления о вызове на сдачу работ",
+  "lang": "ru",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f2f6f5",
+  "icons": [
+    { "src": "./brand/ritm-app-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./brand/ritm-app-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
