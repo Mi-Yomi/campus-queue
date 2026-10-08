@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import { LoaderCircle, Maximize, WifiOff, X } from "lucide-react";
 import { request, cloudEnabled } from "./api";
 import { applyLiveSnapshot } from "./live-state.mjs";
-import { queueBase } from "./queue-links.mjs";
+import { queueInviteUrl } from "./queue-links.mjs";
 import { roundedQrSvg } from "./qr-art.mjs";
 import qrLogo from "./assets/ritm-qr-mark.png?inline";
 import { createResourcePoller } from "./resource-poller.mjs";
@@ -405,7 +405,7 @@ export function LiveQR({
     ? Math.max(0, Math.ceil((value.deadline - tick) / 1000))
     : 0;
   const url = value
-    ? `${queueBase(location.href, baseUrl, cloudEnabled)}#/q/${encodeURIComponent(queueId)}?invite=${encodeURIComponent(value.invite)}`
+    ? queueInviteUrl(location.href, baseUrl, cloudEnabled, queueId, value.invite)
     : "";
   const code = (
     <div className={`live-qr ${expanded ? "live-qr-expanded" : ""}`}>

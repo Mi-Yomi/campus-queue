@@ -322,6 +322,14 @@ export function createApp(options = {}) {
       store.issueInvite(req.params.queueId, { sessionToken: req.adminToken }),
     ),
   );
+  app.post("/api/admin/queues/:queueId/invite-link", (req, res) => {
+    fields(req.body, ["intervalSeconds", "generation"]);
+    const intervalSeconds = integer(req.body.intervalSeconds, 60, 600, "Срок ссылки (секунды)");
+    if (intervalSeconds % 60 !== 0) throw new AppError(400, "Срок ссылки: от 1 до 10 целых минут.");
+    if (integer(req.body.generation, 1, 1_000_000, "Номер пары") !== store.queue(req.params.queueId).generation)
+      throw new AppError(409, "Пара изменилась. Откройте создание ссылки заново.");
+    res.json(store.issueInvite(req.params.queueId, { sessionToken: req.adminToken, intervalSeconds }));
+  });
   app.post("/api/admin/queues/:queueId/display-session", (req, res) => {
     const q = store.queue(req.params.queueId);
     if (q.endedAt) throw new AppError(410, "Очередь завершена.");

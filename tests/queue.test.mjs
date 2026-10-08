@@ -367,6 +367,64 @@ test("teacher cannot read or change another queue or manage accounts", async (t)
   );
   assert.equal((await f.call(`/admin/queues/${a.q}`)).status, 401);
 });
+test("temporary links have an independent lifetime, admit multiple students and preserve tickets and open forms after expiry", async (t) => {
+  const f = await fixture(t), teacher = await f.teacher("link_lifetime");
+  const path = `/admin/queues/${teacher.q}/invite-link`;
+  const link = (await f.call(path, { admin: teacher.token, method: "POST", body: { generation: 1, intervalSeconds: 120 } })).body;
+  assert.equal(link.expiresAt - link.serverNow, 120_000);
+  assert.equal(link.intervalMs, 120_000);
+  assert.equal((await f.invite(teacher.q, teacher.token)).intervalMs, 60_000);
+  const student = visitor();
+  const ticket = (await f.enroll(teacher.q, student, link.invite)).body.mine;
+  f.clock.value = link.serverNow + 61_000;
+  assert.equal((await f.redeem(teacher.q, visitor(), link.invite)).status, 200);
+  const later = (await f.call(path, { admin: teacher.token, method: "POST", body: { generation: 1, intervalSeconds: 60 } })).body;
+  assert.notEqual(link.invite, later.invite);
+  const pending = visitor();
+  f.clock.value = link.expiresAt - 1;
+  const grant = (await f.redeem(teacher.q, pending, link.invite)).body.admission;
+  f.clock.value = link.expiresAt;
+  assert.equal((await f.redeem(teacher.q, visitor(), link.invite)).status, 410);
+  assert.equal((await f.redeem(teacher.q, visitor(), later.invite)).status, 200);
+  assert.equal((await f.call(`/queues/${teacher.q}/join`, { token: pending, method: "POST", body: { name: "Late form", grantId: grant.id } })).status, 200);
+  const restored = (await f.call(`/queues/${teacher.q}`, { token: student })).body;
+  assert.equal(restored.mine.id, ticket.id);
+  assert.equal(restored.mine.status, "waiting");
+  assert.equal((await f.redeem(teacher.q, student, link.invite)).status, 200);
+});
+
+test("only the owning teacher can create a link and only with a bounded duration and current generation", async (t) => {
+  const f = await fixture(t), teacher = await f.teacher("link_access");
+  const path = `/admin/queues/${teacher.q}/invite-link`, body = { generation: 1, intervalSeconds: 120 };
+  assert.equal((await f.call(path, { method: "POST", body })).status, 401);
+  assert.equal((await f.call("/admin/queues/legacy/invite-link", { admin: teacher.token, method: "POST", body })).status, 403);
+  const display = (await f.call(`/admin/queues/${teacher.q}/display-session`, { admin: teacher.token, method: "POST" })).body.token;
+  assert.equal((await f.call(path, { admin: display, method: "POST", body })).status, 401);
+  for (const intervalSeconds of [undefined, null, "120", 0, 20, 90, 120.5, 660]) {
+    assert.equal((await f.call(path, { admin: teacher.token, method: "POST", body: { ...body, intervalSeconds } })).status, 400);
+  }
+  assert.equal((await f.call(path, { admin: teacher.token, method: "POST", body: { ...body, generation: 2 } })).status, 409);
+  const max = await f.call(path, { admin: teacher.token, method: "POST", body: { ...body, intervalSeconds: 600 } });
+  assert.equal(max.status, 200); assert.equal(max.body.intervalMs, 600_000);
+});
+
+test("links respect pause, new class, session revocation and queue completion", async (t) => {
+  const f = await fixture(t), teacher = await f.teacher("link_revocation");
+  const path = `/admin/queues/${teacher.q}`, options = { admin: teacher.token, method: "POST", body: { generation: 1, intervalSeconds: 120 } };
+  const original = (await f.call(path + "/invite-link", options)).body;
+  await f.call(path + "/settings", { admin: teacher.token, method: "PATCH", body: { status: "paused" } });
+  assert.equal((await f.call(path + "/invite-link", options)).status, 409);
+  assert.equal((await f.redeem(teacher.q, visitor(), original.invite)).status, 409);
+  await f.call(path + "/reset", { admin: teacher.token, method: "POST", body: { generation: 1, confirmation: "НОВАЯ ПАРА" } });
+  assert.equal((await f.redeem(teacher.q, visitor(), original.invite)).status, 410);
+  assert.equal((await f.call(path + "/invite-link", options)).status, 409);
+  const fresh = (await f.call(path + "/invite-link", { ...options, body: { ...options.body, generation: 2 } })).body;
+  await f.call("/admin/logout", { admin: teacher.token, method: "POST" });
+  assert.equal((await f.redeem(teacher.q, visitor(), fresh.invite)).status, 410);
+  await f.call(path + "/end", { admin: f.owner, method: "POST", body: { generation: 2, confirmation: "ЗАВЕРШИТЬ" } });
+  assert.equal((await f.call(path + "/invite-link", { ...options, admin: f.owner, body: { ...options.body, generation: 2 } })).status, 410);
+});
+
 test("QR interval belongs to each queue and changing it preserves tickets, grants and signed expiry", async (t) => {
   const f = await fixture(t), teacher = await f.teacher("interval_teacher");
   const created = await f.call("/admin/queues", { admin: teacher.token, method: "POST", body: { title: "Two minutes", qrIntervalSeconds: 120 } });

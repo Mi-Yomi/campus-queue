@@ -7,6 +7,7 @@ import {
   Copy,
   GraduationCap,
   LoaderCircle,
+  Link2,
   LogOut,
   LockKeyhole,
   MapPin,
@@ -25,6 +26,8 @@ import {
 } from "lucide-react";
 import { request, storage, visitorStorageAvailable, cloudEnabled } from "./api";
 import { queueBase } from "./queue-links.mjs";
+import { MinuteIntervalField } from "./minute-interval-field";
+import { InviteLinkDialog } from "./invite-link";
 import { studentDraft, savedStudentName, rememberStudentName } from "./student-profile.mjs";
 import { estimateMinutes, durationLabel, serviceSeconds } from "./queue-analytics.mjs";
 import {
@@ -120,7 +123,7 @@ function Shell({
                 onClick={() => setTab("qr")}
               >
                 <QrCode size={19} />
-                QR-код для записи
+                QR и ссылка для записи
               </button>
               <button
                 className={tab === "settings" ? "active" : ""}
@@ -471,12 +474,12 @@ function Visitor({ queueId, invite, notify }) {
             <p>{[data.settings.title, data.settings.room].filter(Boolean).join(" · ")}</p>
           </header>
           {mine && <p className="student-finished" role="status">
-            {mine.previousSession ? "Началась новая пара. Для записи нужен свежий QR."
-              : mine.status === "skipped" ? "Ваш номер пропущен. Для новой записи отсканируйте QR."
-              : "Вы вышли из очереди. Для новой записи нужен свежий QR."}
+            {mine.previousSession ? "Началась новая пара. Для записи нужен свежий QR или ссылка."
+              : mine.status === "skipped" ? "Ваш номер пропущен. Для новой записи откройте свежую ссылку или QR."
+              : "Вы вышли из очереди. Для новой записи нужен свежий QR или ссылка."}
           </p>}
           {redeeming ? (
-            <div className="student-empty"><LoaderCircle className="spin" /><p>Проверяем QR…</p></div>
+            <div className="student-empty"><LoaderCircle className="spin" /><p>Проверяем приглашение…</p></div>
           ) : data.admission && seconds > 0 ? (
             <form className="student-enroll-form" onSubmit={(event) => {
               event.preventDefault();
@@ -491,7 +494,7 @@ function Visitor({ queueId, invite, notify }) {
                 <p className="student-queue-count">{data.stats.waiting ? `Сейчас в очереди: ${data.stats.waiting} чел.` : "В очереди пока никого. Будете первым :)"}</p>
                 <p className="student-name-hint">Имя сохраним для следующих пар. Его увидят преподаватель и участники этой очереди.</p>
                 {(data.settings.status !== "open" || !data.settings.teacherActive) && <Status status={data.settings.status} disabled={!data.settings.teacherActive} />}
-                <p className="student-admission-time">QR подтверждён · на запись осталось {seconds} с</p>
+                <p className="student-admission-time">Вход подтверждён · на запись осталось {seconds} с</p>
               </div>
               {actionError && <p className="field-error" role="alert">{actionError}</p>}
               <button className="student-enroll-submit" disabled={busy || !!error || data.settings.status !== "open" || !data.settings.teacherActive || seconds <= 0}>
@@ -501,8 +504,8 @@ function Visitor({ queueId, invite, notify }) {
           ) : (
             <section className="student-empty student-needs-qr">
               <img src={studentMedia("sleeping.png")} alt="" width="92" height="95" />
-              <h2>Нужен свежий QR</h2>
-              <p>Попросите код у преподавателя или одногруппника, который уже в очереди.</p>
+              <h2>Нужно приглашение</h2>
+              <p>Откройте свежую ссылку от преподавателя или отсканируйте QR у него или одногруппника.</p>
               {actionError && <p className="field-error" role="alert">{actionError}</p>}
             </section>
           )}
@@ -514,7 +517,7 @@ function Visitor({ queueId, invite, notify }) {
       )}
       {confirm && active && (
         <Dialog title="Выйти из очереди?" onClose={() => setConfirm(false)}>
-          <p>При повторной записи нужен свежий QR, а место будет в конце очереди.</p>
+          <p>При повторной записи нужен свежий QR или ссылка, а место будет в конце очереди.</p>
           <div className="dialog-actions">
             <Button tone="secondary" onClick={() => setConfirm(false)}>Остаться</Button>
             <Button tone="danger" disabled={busy} onClick={() => act("/leave")}>Выйти</Button>
@@ -653,6 +656,7 @@ function Admin({ notify, onLogout }) {
     [busy, setBusy] = useState(false),
     [actionError, setActionError] = useState(""),
     [create, setCreate] = useState(false),
+    [inviteLinkOpen, setInviteLinkOpen] = useState(false),
     [resetGeneration, setResetGeneration] = useState(null),
     [endTarget, setEndTarget] = useState(null),
     [manualQueue, setManualQueue] = useState(null),
@@ -722,6 +726,7 @@ function Admin({ notify, onLogout }) {
       alive = false;
     };
   }, [qid, data?.settings.generation, securityRevision, passwordRequired]);
+  useEffect(() => setInviteLinkOpen(false), [qid, data?.settings.generation, securityRevision]);
   async function act(suffix, body, message, method = "POST", target = qid) {
     if (!target) return false;
     setBusy(true);
@@ -815,7 +820,7 @@ function Admin({ notify, onLogout }) {
             {tab === "teachers"
               ? "Преподаватели"
               : tab === "qr"
-                ? "QR для вашей пары"
+                ? "QR и ссылка для вашей пары"
                 : tab === "settings"
                   ? "Настройки пары"
                   : (data?.settings.title || "Ваши очереди")}
@@ -896,6 +901,8 @@ function Admin({ notify, onLogout }) {
               baseUrl={baseUrl}
               setBaseUrl={setBaseUrl}
               displayUrl={displayUrl}
+              onCreateLink={() => setInviteLinkOpen(true)}
+              linkDisabled={disabled || data.settings.status !== "open" || !data.settings.teacherActive}
               notify={notify}
             />
           ) : (
@@ -1077,6 +1084,9 @@ function Admin({ notify, onLogout }) {
                         !error
                       }
                     />
+                    <Button tone="secondary" className="wide invite-link-trigger"
+                      disabled={disabled || data.settings.status !== "open" || !data.settings.teacherActive}
+                      onClick={() => setInviteLinkOpen(true)}><Link2 size={18} /> Ссылка вместо QR</Button>
                     {displayUrl && (
                       <a
                         href={displayUrl}
@@ -1162,6 +1172,10 @@ function Admin({ notify, onLogout }) {
           )}
         </>
       )}
+      {inviteLinkOpen && data && <InviteLinkDialog key={`${qid}-${data.settings.generation}`}
+        queue={data.settings} baseUrl={baseUrl}
+        blocked={disabled || data.settings.status !== "open" || !data.settings.teacherActive}
+        onClose={() => setInviteLinkOpen(false)} />}
       {showPassword && <PasswordChange user={user} onClose={closePassword} onChanged={passwordChanged} />}
       {manualQueue && <ManualEnrollment queue={manualQueue} blocked={!!connectionError} onClose={() => setManualQueue(null)}
         onAdded={async ticket => {
@@ -1219,7 +1233,7 @@ function Admin({ notify, onLogout }) {
                 placeholder="Лабораторная № 3 · Базы данных"
               />
             </label>
-            <QrIntervalField disabled={busy} />
+            <MinuteIntervalField disabled={busy} />
             <ErrorBox error={actionError} />
             <Button className="wide" disabled={busy}>
               <Plus size={18} />
@@ -1274,24 +1288,6 @@ function Admin({ notify, onLogout }) {
         </Dialog>
       )}
     </Shell>
-  );
-}
-function QrIntervalField({ initialSeconds = 60, disabled = false }) {
-  const [minutes, setMinutes] = useState(() => initialSeconds / 60);
-  return (
-    <div className="qr-interval-field">
-      <label>
-        Обновлять QR каждые, мин
-        <input name="qrIntervalMinutes" type="number" min="1" max="10" step="1" required
-          value={minutes} onChange={e => setMinutes(e.target.value)} disabled={disabled} />
-      </label>
-      <div className="qr-interval-presets" aria-label="Быстрый выбор интервала QR">
-        {[1, 2].map(value => <Button key={value} type="button" tone="secondary"
-          aria-pressed={Number(minutes) === value} disabled={disabled}
-          onClick={() => setMinutes(value)}>{value} мин</Button>)}
-      </div>
-      <p className="small muted">От 1 до 10 минут. Смена интервала сохраняет все талоны.</p>
-    </div>
   );
 }
 function Settings({ data, act, disabled, startNew }) {
@@ -1349,7 +1345,7 @@ function Settings({ data, act, disabled, startNew }) {
               />
             </label>
           </div>
-          <QrIntervalField initialSeconds={data.settings.qrIntervalSeconds} disabled={disabled} />
+          <MinuteIntervalField initialSeconds={data.settings.qrIntervalSeconds} disabled={disabled} />
           <label>
             Запись
             <select name="status" defaultValue={data.settings.status}>
@@ -1387,7 +1383,7 @@ function Settings({ data, act, disabled, startNew }) {
     </div>
   );
 }
-function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
+function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify, onCreateLink, linkDisabled }) {
   const [draft, setDraft] = useState(baseUrl),
     [error, setError] = useState("");
   const network = useResource("/admin/network", { admin: true, poll: 0 });
@@ -1408,6 +1404,9 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
             data.settings.status === "open" && data.settings.teacherActive
           }
         />
+        <Button tone="secondary" className="wide invite-link-trigger" disabled={linkDisabled} onClick={onCreateLink}>
+          <Link2 size={18} /> Ссылка вместо QR
+        </Button>
         <p>
           После записи студенты смогут
           <br />

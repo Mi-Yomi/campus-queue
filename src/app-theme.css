@@ -351,3 +351,10 @@ input::placeholder { color: #828985; }
 .qr-interval-presets .button { min-height: 38px; padding: 8px 18px; }
 .qr-interval-presets .button[aria-pressed="true"] { background: #fff0e9; color: #b52d10; border-color: #ff542b; }
 .qr-interval-field .small { margin-bottom: 0; }
+.invite-link-trigger { margin-top: 10px; }
+.invite-link-result { margin-top: 22px; padding: 18px; border-radius: 18px; background: #f2f6f5; }
+.invite-link-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #24754a; font-weight: 600; }
+.invite-link-status strong { font-variant-numeric: tabular-nums; font-size: 24px; }
+.invite-link-result.expired .invite-link-status { color: #b52d10; }
+.invite-link-result input { font-size: 12px; min-width: 0; }
+.invite-link-result .small:last-child { margin-bottom: 0; }

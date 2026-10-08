@@ -15,3 +15,7 @@ export function queueBase(currentHref, saved, cloud) {
     return url.href;
   } catch { return current.href; }
 }
+
+export function queueInviteUrl(currentHref, saved, cloud, queueId, invite) {
+  return `${queueBase(currentHref, saved, cloud)}#/q/${encodeURIComponent(queueId)}?invite=${encodeURIComponent(invite)}`;
+}

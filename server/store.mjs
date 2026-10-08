@@ -337,12 +337,16 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
         (s.kind === "display" &&
           (s.queueId !== q.id || s.generation !== q.generation))
       )
-        fail(410, "QR отозван. Попросите свежий код.");
+        fail(410, "Приглашение отозвано. Попросите новую ссылку или QR.");
     } else fail(400, "Некорректное приглашение.");
   }
-  function issueInvite(id, { visitorToken, sessionToken, displayToken } = {}) {
+  function issueInvite(id, { visitorToken, sessionToken, displayToken, intervalSeconds } = {}) {
     const q = queue(id);
     requireOpen(q);
+    if (intervalSeconds !== undefined && !sessionToken) fail(403, "Создавать ссылки может только преподаватель.");
+    const seconds = intervalSeconds ?? q.qrIntervalSeconds;
+    if (!Number.isInteger(seconds) || seconds < 60 || seconds > 600 || seconds % 60 !== 0)
+      fail(400, "Срок приглашения: от 1 до 10 целых минут.");
     let kind, issuer;
     if (sessionToken) {
       const auth = authenticate(sessionToken);
@@ -373,7 +377,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       issuer = row.id;
     }
     const iat = now(),
-      exp = iat + q.qrIntervalSeconds * 1000;
+      exp = iat + seconds * 1000;
     const payload = Buffer.from(
       JSON.stringify({ v: 1, q: id, g: q.generation, kind, issuer, iat, exp }),
     ).toString("base64url");
@@ -384,7 +388,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       invite: `${payload}.${signature}`,
       expiresAt: exp,
       serverNow: now(),
-      intervalMs: q.qrIntervalSeconds * 1000,
+      intervalMs: seconds * 1000,
     };
   }
   function verifyInvite(id, raw) {
@@ -426,11 +430,11 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     if (now() >= claims.exp || now() < claims.iat)
       fail(
         410,
-        "QR-код устарел. Отсканируйте текущий код у преподавателя или одногруппника.",
+        "Приглашение устарело. Попросите новую ссылку или отсканируйте свежий QR.",
       );
     const q = queue(id);
     if (q.generation !== claims.g)
-      fail(410, "Эта пара уже завершена. Нужен новый QR.");
+      fail(410, "Эта пара уже завершена. Нужен новый QR или ссылка.");
     requireOpen(q);
     issuerValid(claims, q);
     return claims;
@@ -497,7 +501,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
         grant.expiresAt <= now() ||
         grant.generation !== q.generation
       )
-        fail(410, "Время записи истекло. Отсканируйте свежий QR-код.");
+        fail(410, "Время записи истекло. Откройте свежую ссылку или отсканируйте QR.");
       const count = db
         .prepare(
           "SELECT COUNT(*) AS n FROM queue_tickets WHERE queueId=? AND generation=? AND status IN ('waiting','called')",

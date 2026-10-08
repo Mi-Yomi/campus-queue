@@ -121,6 +121,11 @@ Deno.serve(async (req: Request) => {
         integer(body.qrIntervalSeconds, 60, 600, "Интервал QR (секунды)");
         if (Number(body.qrIntervalSeconds) % 60 !== 0) throw new ApiError(400, "Интервал QR: от 1 до 10 целых минут.");
       }
+    } else if (/^\/admin\/queues\/[^/]+\/invite-link$/.test(path) && req.method === "POST") {
+      fields(body, ["intervalSeconds", "generation"]);
+      integer(body.intervalSeconds, 60, 600, "Срок ссылки (секунды)");
+      if (Number(body.intervalSeconds) % 60 !== 0) throw new ApiError(400, "Срок ссылки: от 1 до 10 целых минут.");
+      integer(body.generation, 1, 1_000_000, "Номер пары");
     } else if (/^\/admin\/queues\/[^/]+\/tickets$/.test(path) && req.method === "POST") {
       fields(body, ["name", "requestId", "generation"]);
       body.name = text(body.name, "Имя", 60);
