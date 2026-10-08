@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
       const salt = randomBytes(16).toString("hex");
       body = { _verifiedHash: context.hash, _hash: `${salt}:${scryptSync(password, salt, 64).toString("hex")}` };
     } else if ((path === "/admin/queues" && req.method === "POST") || (/^\/admin\/queues\/[^/]+\/settings$/.test(path) && req.method === "PATCH")) {
-      fields(body, ["title", "room", "status", "avgMinutes", "maxQueue"]);
+      fields(body, ["title", "room", "status", "avgMinutes", "maxQueue", "qrIntervalSeconds"]);
       const creating = path === "/admin/queues";
       if (creating || "title" in body) body.title = text(body.title, "Название", 80);
       if (creating || "room" in body) body.room = body.room === undefined || (typeof body.room === "string" && !body.room.trim())
@@ -117,6 +117,10 @@ Deno.serve(async (req: Request) => {
       if ("status" in body && !["open", "paused", "closed"].includes(String(body.status))) throw new ApiError(400, "Некорректный статус.");
       if ("avgMinutes" in body) integer(body.avgMinutes, 1, 120, "Время на студента");
       if ("maxQueue" in body) integer(body.maxQueue, 1, 500, "Лимит");
+      if ("qrIntervalSeconds" in body) {
+        integer(body.qrIntervalSeconds, 60, 600, "Интервал QR (секунды)");
+        if (Number(body.qrIntervalSeconds) % 60 !== 0) throw new ApiError(400, "Интервал QR: от 1 до 10 целых минут.");
+      }
     } else if (/^\/admin\/queues\/[^/]+\/tickets$/.test(path) && req.method === "POST") {
       fields(body, ["name", "requestId", "generation"]);
       body.name = text(body.name, "Имя", 60);

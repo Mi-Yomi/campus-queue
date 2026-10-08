@@ -275,6 +275,7 @@ export function QR({ url, large = false }) {
 export function LiveQR({
   queueId,
   generation,
+  qrIntervalSeconds = 60,
   baseUrl = here(),
   admin = false,
   displayToken,
@@ -395,7 +396,7 @@ export function LiveQR({
       controller?.abort();
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [queueId, generation, admin, displayToken, enabled]);
+  }, [queueId, generation, qrIntervalSeconds, admin, displayToken, enabled]);
   useEffect(() => {
     const timer = setInterval(() => setTick(performance.now()), 100);
     return () => clearInterval(timer);
@@ -431,10 +432,10 @@ export function LiveQR({
               ? "Обновляем код…"
               : "Новые записи недоступны"}
         </span>
-        <span>{Math.round((value?.intervalMs || 20000) / 1000)} секунд</span>
+        <span>{Math.round((value?.intervalMs || qrIntervalSeconds * 1000) / 60000)} мин</span>
       </div>
       <div className="qr-progress">
-        <i style={{ width: `${Math.min(100, remaining * 100000 / (value?.intervalMs || 20000))}%` }} />
+        <i style={{ width: `${Math.min(100, remaining * 100000 / (value?.intervalMs || qrIntervalSeconds * 1000))}%` }} />
       </div>
       {error && <p className="field-error">{error.message}</p>}
       <p className="small muted">

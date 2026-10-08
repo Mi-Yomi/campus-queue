@@ -30,7 +30,7 @@ function fields(body, allowed) {
     throw new AppError(400, "Неизвестное поле.");
 }
 function settingsInput(body, required = false) {
-  fields(body, ["title", "room", "status", "avgMinutes", "maxQueue"]);
+  fields(body, ["title", "room", "status", "avgMinutes", "maxQueue", "qrIntervalSeconds"]);
   const result = {};
   if (required || "title" in body)
     result.title = text(body.title, "Название", 80);
@@ -46,6 +46,11 @@ function settingsInput(body, required = false) {
     result.avgMinutes = integer(body.avgMinutes, 1, 120, "Время на студента");
   if ("maxQueue" in body)
     result.maxQueue = integer(body.maxQueue, 1, 500, "Лимит");
+  if ("qrIntervalSeconds" in body) {
+    result.qrIntervalSeconds = integer(body.qrIntervalSeconds, 60, 600, "Интервал QR (секунды)");
+    if (result.qrIntervalSeconds % 60 !== 0)
+      throw new AppError(400, "Интервал QR: от 1 до 10 целых минут.");
+  }
   return result;
 }
 export function createApp(options = {}) {

@@ -21,7 +21,7 @@ export class AppError extends Error {
 const fail = (status, message) => {
   throw new AppError(status, message);
 };
-export const QR_INTERVAL = 20_000;
+export const QR_INTERVAL = 60_000;
 export const GRANT_TTL = 120_000;
 export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   if (filename !== ":memory:")
@@ -121,6 +121,11 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       db.exec("ALTER TABLE users ADD COLUMN passwordChangeSuggested INTEGER NOT NULL DEFAULT 0; UPDATE users SET passwordChangeSuggested=1 WHERE role='teacher'; PRAGMA user_version=4;");
     });
   }
+  if (schema < 5) {
+    tx(() => {
+      db.exec("ALTER TABLE queues ADD COLUMN qrIntervalSeconds INTEGER NOT NULL DEFAULT 60 CHECK(qrIntervalSeconds BETWEEN 60 AND 600 AND qrIntervalSeconds % 60 = 0); PRAGMA user_version=5;");
+    });
+  }
   const secret = db
     .prepare("SELECT value FROM app_meta WHERE key='invite_secret'")
     .get().value;
@@ -209,10 +214,10 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
   }
   function createQueue(
     actor,
-    { title, room = "", avgMinutes = 5, maxQueue = 60, status = "open" },
+    { title, room = "", avgMinutes = 5, maxQueue = 60, status = "open", qrIntervalSeconds = QR_INTERVAL / 1000 },
   ) {
     const id = randomUUID();
-    db.prepare("INSERT INTO queues(id,ownerId,title,room,status,avgMinutes,maxQueue,generation,createdAt) VALUES(?,?,?,?,?,?,?,?,?)").run(
+    db.prepare("INSERT INTO queues(id,ownerId,title,room,status,avgMinutes,maxQueue,generation,createdAt,qrIntervalSeconds) VALUES(?,?,?,?,?,?,?,?,?,?)").run(
       id,
       actor.id,
       title,
@@ -222,6 +227,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       maxQueue,
       1,
       stamp(),
+      qrIntervalSeconds,
     );
     return queue(id);
   }
@@ -367,7 +373,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       issuer = row.id;
     }
     const iat = now(),
-      exp = iat + QR_INTERVAL;
+      exp = iat + q.qrIntervalSeconds * 1000;
     const payload = Buffer.from(
       JSON.stringify({ v: 1, q: id, g: q.generation, kind, issuer, iat, exp }),
     ).toString("base64url");
@@ -378,7 +384,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       invite: `${payload}.${signature}`,
       expiresAt: exp,
       serverNow: now(),
-      intervalMs: QR_INTERVAL,
+      intervalMs: q.qrIntervalSeconds * 1000,
     };
   }
   function verifyInvite(id, raw) {
@@ -403,6 +409,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     } catch {
       fail(400, "Некорректный QR-код.");
     }
+    const duration = claims?.exp - claims?.iat;
     if (
       !claims ||
       claims.v !== 1 ||
@@ -410,7 +417,9 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       !Number.isInteger(claims.g) ||
       !Number.isInteger(claims.iat) ||
       !Number.isInteger(claims.exp) ||
-      claims.exp - claims.iat !== QR_INTERVAL ||
+      // Signed invitations keep their original expiry when the teacher changes the interval.
+      // Accept the previous 20-second format during an upgrade, too.
+      !(duration === 20_000 || (duration >= 60_000 && duration <= 600_000 && duration % 60_000 === 0)) ||
       typeof claims.issuer !== "string"
     )
       fail(400, "QR относится к другой очереди или повреждён.");
@@ -609,8 +618,8 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     const q = { ...queue(id), ...values };
     if (q.endedAt) fail(410, "Очередь завершена.");
     db.prepare(
-      "UPDATE queues SET title=?,room=?,status=?,avgMinutes=?,maxQueue=? WHERE id=?",
-    ).run(q.title, q.room, q.status, q.avgMinutes, q.maxQueue, id);
+      "UPDATE queues SET title=?,room=?,status=?,avgMinutes=?,maxQueue=?,qrIntervalSeconds=? WHERE id=?",
+    ).run(q.title, q.room, q.status, q.avgMinutes, q.maxQueue, q.qrIntervalSeconds, id);
   }
   function reset(id, generation) {
     return tx(() => {

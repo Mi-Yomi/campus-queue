@@ -509,7 +509,7 @@ function Visitor({ queueId, invite, notify }) {
         </main>
       )}
       {share && data && active && (
-        <LiveQR queueId={queueId} generation={data.settings.generation} enabled={data.canShare && !error}
+        <LiveQR queueId={queueId} generation={data.settings.generation} qrIntervalSeconds={data.settings.qrIntervalSeconds} enabled={data.canShare && !error}
           title={data.settings.title} subtitle={data.settings.teacherName} initiallyExpanded onClose={() => setShare(false)} />
       )}
       {confirm && active && (
@@ -1066,7 +1066,7 @@ function Admin({ notify, onLogout }) {
                     </div>
                     <LiveQR
                       queueId={qid}
-                      generation={data.settings.generation}
+                      generation={data.settings.generation} qrIntervalSeconds={data.settings.qrIntervalSeconds}
                       title={data.settings.title}
                       subtitle={data.settings.teacherName}
                       admin
@@ -1194,6 +1194,7 @@ function Admin({ notify, onLogout }) {
                   method: "POST",
                   body: {
                     title: values.get("title"),
+                    qrIntervalSeconds: Number(values.get("qrIntervalMinutes")) * 60,
                   },
                 });
                 await queues.refresh();
@@ -1218,6 +1219,7 @@ function Admin({ notify, onLogout }) {
                 placeholder="Лабораторная № 3 · Базы данных"
               />
             </label>
+            <QrIntervalField disabled={busy} />
             <ErrorBox error={actionError} />
             <Button className="wide" disabled={busy}>
               <Plus size={18} />
@@ -1274,6 +1276,24 @@ function Admin({ notify, onLogout }) {
     </Shell>
   );
 }
+function QrIntervalField({ initialSeconds = 60, disabled = false }) {
+  const [minutes, setMinutes] = useState(() => initialSeconds / 60);
+  return (
+    <div className="qr-interval-field">
+      <label>
+        Обновлять QR каждые, мин
+        <input name="qrIntervalMinutes" type="number" min="1" max="10" step="1" required
+          value={minutes} onChange={e => setMinutes(e.target.value)} disabled={disabled} />
+      </label>
+      <div className="qr-interval-presets" aria-label="Быстрый выбор интервала QR">
+        {[1, 2].map(value => <Button key={value} type="button" tone="secondary"
+          aria-pressed={Number(minutes) === value} disabled={disabled}
+          onClick={() => setMinutes(value)}>{value} мин</Button>)}
+      </div>
+      <p className="small muted">От 1 до 10 минут. Смена интервала сохраняет все талоны.</p>
+    </div>
+  );
+}
 function Settings({ data, act, disabled, startNew }) {
   return (
     <div className="settings-grid">
@@ -1291,6 +1311,7 @@ function Settings({ data, act, disabled, startNew }) {
                 title: f.get("title"),
                 room: f.get("room"),
                 maxQueue: Number(f.get("maxQueue")),
+                qrIntervalSeconds: Number(f.get("qrIntervalMinutes")) * 60,
                 status: f.get("status"),
               },
               "Настройки сохранены.",
@@ -1328,6 +1349,7 @@ function Settings({ data, act, disabled, startNew }) {
               />
             </label>
           </div>
+          <QrIntervalField initialSeconds={data.settings.qrIntervalSeconds} disabled={disabled} />
           <label>
             Запись
             <select name="status" defaultValue={data.settings.status}>
@@ -1377,7 +1399,7 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
         <h2>{data.settings.title}</h2>
         <LiveQR
           queueId={data.settings.id}
-          generation={data.settings.generation}
+          generation={data.settings.generation} qrIntervalSeconds={data.settings.qrIntervalSeconds}
           title={data.settings.title}
           subtitle={data.settings.teacherName}
           admin
@@ -1405,8 +1427,8 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify }) {
       <section className="panel settings-panel">
         <h2>Адрес сайта для телефонов</h2>
         <p className="muted">
-          Приглашение добавляется в QR автоматически. Секретная ссылка меняется
-          каждые 20 секунд.
+          Приглашение добавляется в QR автоматически. Интервал обновления — {Math.round((data.settings.qrIntervalSeconds || 60) / 60)} мин.
+          Его можно изменить в настройках очереди.
         </p>
         <form
           onSubmit={(e) => {
@@ -1769,7 +1791,7 @@ function Screen({ queueId, displayToken }) {
           {displayToken && data ? (
             <LiveQR
               queueId={queueId}
-              generation={data.settings.generation}
+              generation={data.settings.generation} qrIntervalSeconds={data.settings.qrIntervalSeconds}
               title={data.settings.title}
               subtitle={data.settings.teacherName}
               displayToken={displayToken}

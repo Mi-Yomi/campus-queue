@@ -345,3 +345,9 @@ input::placeholder { color: #828985; }
   .password-mascot img { width: 80px; height: 80px; }
   .password-intro { margin-bottom: 18px; }
 }
+.qr-interval-field { margin: 18px 0; }
+.qr-interval-field input { max-width: 160px; }
+.qr-interval-presets { display: flex; gap: 8px; margin-top: 10px; }
+.qr-interval-presets .button { min-height: 38px; padding: 8px 18px; }
+.qr-interval-presets .button[aria-pressed="true"] { background: #fff0e9; color: #b52d10; border-color: #ff542b; }
+.qr-interval-field .small { margin-bottom: 0; }

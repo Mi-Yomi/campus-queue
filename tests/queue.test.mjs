@@ -367,12 +367,74 @@ test("teacher cannot read or change another queue or manage accounts", async (t)
   );
   assert.equal((await f.call(`/admin/queues/${a.q}`)).status, 401);
 });
-test("QR expires at exactly 20 seconds; tampering and cross-queue reuse fail", async (t) => {
+test("QR interval belongs to each queue and changing it preserves tickets, grants and signed expiry", async (t) => {
+  const f = await fixture(t), teacher = await f.teacher("interval_teacher");
+  const created = await f.call("/admin/queues", { admin: teacher.token, method: "POST", body: { title: "Two minutes", qrIntervalSeconds: 120 } });
+  assert.equal(created.status, 201);
+  const qid = created.body.queue.id;
+  assert.equal(created.body.queue.qrIntervalSeconds, 120);
+  const initial = await f.invite(qid, teacher.token);
+  assert.equal(initial.expiresAt - initial.serverNow, 120_000);
+  const student = visitor(), pending = visitor();
+  const joined = (await f.enroll(qid, student, initial.invite)).body.mine;
+  const grant = (await f.redeem(qid, pending, initial.invite)).body.admission;
+  const display = (await f.call(`/admin/queues/${qid}/display-session`, { admin: teacher.token, method: "POST" })).body.token;
+  const changed = await f.call(`/admin/queues/${qid}/settings`, { admin: teacher.token, method: "PATCH", body: { qrIntervalSeconds: 60 } });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.settings.generation, created.body.queue.generation);
+  assert.equal((await f.invite(qid, teacher.token)).intervalMs, 60_000);
+  assert.equal((await f.call(`/queues/${qid}/invite`, { token: student })).body.intervalMs, 60_000);
+  assert.equal((await f.call(`/display/queues/${qid}/invite`, { display })).body.intervalMs, 60_000);
+  assert.equal((await f.invite(teacher.q, teacher.token)).intervalMs, 60_000);
+  f.clock.value = initial.serverNow + 70_000;
+  assert.equal((await f.redeem(qid, visitor(), initial.invite)).status, 200);
+  assert.equal((await f.call(`/queues/${qid}/join`, { token: pending, method: "POST", body: { name: "Pending student", grantId: grant.id } })).status, 200);
+  assert.equal((await f.call(`/queues/${qid}`, { token: student })).body.mine.id, joined.id);
+  f.clock.value = initial.expiresAt;
+  assert.equal((await f.redeem(qid, visitor(), initial.invite)).status, 410);
+  assert.equal((await f.call(`/queues/${qid}`, { token: student })).body.mine.status, "waiting");
+});
+
+test("QR interval validates whole minutes and cannot be changed by another teacher or a student", async (t) => {
+  const f = await fixture(t), teacher = await f.teacher("interval_access");
+  for (const qrIntervalSeconds of [null, "120", 0, 20, 59, 61, 90, 120.5, 601, 660]) {
+    assert.equal((await f.call(`/admin/queues/${teacher.q}/settings`, { admin: teacher.token, method: "PATCH", body: { qrIntervalSeconds } })).status, 400);
+    assert.equal((await f.call("/admin/queues", { admin: teacher.token, method: "POST", body: { title: "Invalid", qrIntervalSeconds } })).status, 400);
+  }
+  assert.equal((await f.call("/admin/queues/legacy/settings", { admin: teacher.token, method: "PATCH", body: { qrIntervalSeconds: 120 } })).status, 403);
+  assert.equal((await f.call(`/admin/queues/${teacher.q}/settings`, { token: visitor(), method: "PATCH", body: { qrIntervalSeconds: 120 } })).status, 401);
+  for (const seconds of [180, 600]) {
+    assert.equal((await f.call(`/admin/queues/${teacher.q}/settings`, { admin: teacher.token, method: "PATCH", body: { qrIntervalSeconds: seconds } })).status, 200);
+    const code = await f.invite(teacher.q, teacher.token);
+    assert.equal(code.expiresAt - code.serverNow, seconds * 1000);
+  }
+});
+
+test("existing databases gain a one-minute default and keep a teacher interval after restart", async (t) => {
+  const path = temporary(t), f = await fixture(t, { databasePath: path }), token = visitor();
+  const ticket = (await f.enroll("legacy", token)).body.mine;
+  await f.close();
+  const db = new DatabaseSync(path);
+  db.exec("ALTER TABLE queues DROP COLUMN qrIntervalSeconds; PRAGMA user_version=4;");
+  db.close();
+  const upgraded = await fixture(t, { databasePath: path });
+  const state = (await upgraded.call("/queues/legacy", { token })).body;
+  assert.equal(state.settings.qrIntervalSeconds, 60);
+  assert.equal(state.mine.id, ticket.id);
+  await upgraded.call("/admin/queues/legacy/settings", { admin: upgraded.owner, method: "PATCH", body: { qrIntervalSeconds: 120 } });
+  await upgraded.close();
+  const restarted = await fixture(t, { databasePath: path });
+  assert.equal((await restarted.invite()).intervalMs, 120_000);
+  assert.equal((await restarted.call("/queues/legacy", { token })).body.mine.id, ticket.id);
+  await restarted.close();
+});
+
+test("QR expires at exactly 60 seconds; tampering and cross-queue reuse fail", async (t) => {
   const f = await fixture(t),
     a = await f.teacher("teacher_a"),
     code = await f.invite();
-  assert.equal(code.intervalMs, 20_000);
-  assert.equal(code.expiresAt - code.serverNow, 20_000);
+  assert.equal(code.intervalMs, 60_000);
+  assert.equal(code.expiresAt - code.serverNow, 60_000);
   f.clock.value = code.expiresAt - 1;
   assert.equal((await f.redeem("legacy", visitor(), code.invite)).status, 200);
   f.clock.value = code.expiresAt;
