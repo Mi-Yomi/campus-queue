@@ -1086,7 +1086,8 @@ function Admin({ notify, onLogout }) {
                     />
                     <Button tone="secondary" className="wide invite-link-trigger"
                       disabled={disabled || data.settings.status !== "open" || !data.settings.teacherActive}
-                      onClick={() => setInviteLinkOpen(true)}><Link2 size={18} /> Ссылка вместо QR</Button>
+                      onClick={() => setInviteLinkOpen(true)}><Link2 size={18} /> Ссылка для записи</Button>
+                    <p className="small muted">QR и ссылка работают одновременно.</p>
                     {displayUrl && (
                       <a
                         href={displayUrl}
@@ -1405,8 +1406,9 @@ function QRSettings({ data, baseUrl, setBaseUrl, displayUrl, notify, onCreateLin
           }
         />
         <Button tone="secondary" className="wide invite-link-trigger" disabled={linkDisabled} onClick={onCreateLink}>
-          <Link2 size={18} /> Ссылка вместо QR
+          <Link2 size={18} /> Ссылка для записи
         </Button>
+        <p className="small muted">QR и ссылка работают одновременно.</p>
         <p>
           После записи студенты смогут
           <br />

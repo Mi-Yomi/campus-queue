@@ -71,8 +71,8 @@ export function InviteLinkDialog({ queue, baseUrl, blocked, onClose }) {
   }
 
   return (
-    <Dialog title="Ссылка вместо QR" onClose={onClose}>
-      <p className="muted">{queue.title}. Отправьте ссылку студентам — по ней можно записаться без камеры.</p>
+    <Dialog title="Ссылка для записи" onClose={onClose}>
+      <p className="muted">{queue.title}. QR и ссылка работают одновременно и ведут в одну очередь. Отправьте ссылку тем, кому удобнее открыть её без камеры.</p>
       <form onSubmit={generate}>
         <MinuteIntervalField initialSeconds={queue.qrIntervalSeconds} name="linkMinutes"
           label="Срок новой ссылки, мин" disabled={busy || blocked}
