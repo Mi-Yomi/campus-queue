@@ -5,8 +5,7 @@ import { Button, Dialog, ErrorBox } from "./ui";
 import { MinuteIntervalField } from "./minute-interval-field";
 import { queueInviteUrl } from "./queue-links.mjs";
 
-export function InviteLinkDialog({ queue, baseUrl, blocked, onClose }) {
-  const [created, setCreated] = useState(null);
+export function InviteLinkDialog({ queue, baseUrl, blocked, created, onCreated, onClose }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copyState, setCopyState] = useState("");
@@ -45,9 +44,10 @@ export function InviteLinkDialog({ queue, baseUrl, blocked, onClose }) {
       });
       if (active.signal.aborted) return;
       const deadline = start + result.expiresAt - result.serverNow;
-      setCreated({
+      onCreated({
         url: queueInviteUrl(location.href, baseUrl, cloudEnabled, queue.id, result.invite),
         deadline,
+        intervalSeconds,
       });
       setNow(performance.now());
     } catch (e) {
@@ -74,7 +74,7 @@ export function InviteLinkDialog({ queue, baseUrl, blocked, onClose }) {
     <Dialog title="Ссылка для записи" onClose={onClose}>
       <p className="muted">{queue.title}. QR и ссылка работают одновременно и ведут в одну очередь. Отправьте ссылку тем, кому удобнее открыть её без камеры.</p>
       <form onSubmit={generate}>
-        <MinuteIntervalField initialSeconds={queue.qrIntervalSeconds} name="linkMinutes"
+        <MinuteIntervalField initialSeconds={created?.intervalSeconds ?? queue.qrIntervalSeconds} name="linkMinutes"
           label="Срок новой ссылки, мин" disabled={busy || blocked}
           hint="От 1 до 10 минут с момента создания. Интервал QR останется прежним." />
         <Button className="wide" disabled={busy || blocked}>

@@ -664,6 +664,8 @@ function Admin({ notify, onLogout }) {
     [displayUrl, setDisplayUrl] = useState("");
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [securityRevision, setSecurityRevision] = useState(0);
+  // Keep each queue's last link outside the dialog so closing it preserves its original expiry.
+  const [inviteLinks, setInviteLinks] = useState({});
   const showPassword = user && passwordOpen;
   function closePassword() { setPasswordOpen(false); }
   function passwordChanged() {
@@ -671,6 +673,7 @@ function Admin({ notify, onLogout }) {
     setPasswordSaved(true);
     me.refresh();
     closePassword();
+    setInviteLinks({});
     setSecurityRevision((value) => value + 1);
     notify("Пароль изменён. На других устройствах потребуется войти заново.");
   }
@@ -779,6 +782,7 @@ function Admin({ notify, onLogout }) {
     }
   }
   const disabled = busy || !!connectionError || !!data?.settings.endedAt;
+  const inviteLinkKey = data ? `${qid}-${data.settings.generation}` : "";
   if (passwordRequired) return (
     <div className="password-required-page">
       <Brand />
@@ -1175,6 +1179,8 @@ function Admin({ notify, onLogout }) {
       )}
       {inviteLinkOpen && data && <InviteLinkDialog key={`${qid}-${data.settings.generation}`}
         queue={data.settings} baseUrl={baseUrl}
+        created={inviteLinks[inviteLinkKey] ?? null}
+        onCreated={(link) => setInviteLinks((previous) => ({ ...previous, [inviteLinkKey]: link }))}
         blocked={disabled || data.settings.status !== "open" || !data.settings.teacherActive}
         onClose={() => setInviteLinkOpen(false)} />}
       {showPassword && <PasswordChange user={user} onClose={closePassword} onChanged={passwordChanged} />}
