@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Pause, Play } from "lucide-react";
-import { Brand } from "./ui";
+import { Brand, Button } from "./ui";
 import { CreatorBanner } from "./creator-banner";
 
 export const studentMedia = (file) => `${import.meta.env.BASE_URL}media/${file}`;
@@ -34,13 +34,22 @@ export function StudentPage({ children, waiting = false, called = false, ended =
   );
 }
 
-export function WorkDone({ settings, ticket }) {
+export function WorkDone({ settings, ticket, onRetake, busy, disabled, error }) {
   return <main className="student-done-screen" role="status" aria-live="polite">
     <img src={studentMedia("ritm-done.webp")} alt="Котик РИТМ показывает лапкой палец вверх" width="240" height="240" />
     <span className="student-done-badge">{ticket.number} · Готово!</span>
     <h1>Работа сдана!</h1>
     <p>Можно спокойно сидеть<br />и отдыхать :3</p>
     <span className="student-done-class">{[settings.title, settings.room].filter(Boolean).join(" · ")}</span>
+    {!settings.endedAt && <section className="student-retake">
+      <Button type="button" className="wide" onClick={onRetake} disabled={busy || disabled}>
+        {busy ? "Записываем…" : "Записаться на пересдачу"}
+      </Button>
+      <small>{settings.status !== "open" || !settings.teacherActive
+        ? "Запись сейчас закрыта. Пересдача будет доступна, когда преподаватель откроет её."
+        : "Новый талон в конец очереди. Имя уже заполнено :3"}</small>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </section>}
     <a className="student-done-home" href="#/">К моим талонам</a>
   </main>;
 }

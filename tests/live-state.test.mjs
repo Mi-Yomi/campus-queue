@@ -20,6 +20,19 @@ test("public updates preserve private identity and calculate position", () => {
  assert.equal(next.mine.estimatedMinutes, 5); assert.equal(next.canShare, true);
  assert.equal(next.admission.id, "grant"); assert.equal(next.states, undefined);
 });
+
+test("Realtime follows teacher order rather than ticket numbers and updates the estimate", () => {
+ const initial = {...data(), roster: [{seq:1,name:"First"},{seq:2,name:"Student"},{seq:3,name:"Third"}]};
+ const next = applyLiveSnapshot(initial, live({ states: [
+   {seq:1,number:"A-001",status:"called",queueOrder:1},
+   {seq:3,number:"A-003",status:"waiting",queueOrder:1},
+   {seq:2,number:"A-002",status:"waiting",queueOrder:2},
+ ] }));
+ assert.equal(next.mine.number, "A-002"); assert.equal(next.mine.position, 2);
+ assert.equal(next.mine.ahead, 2); assert.equal(next.mine.estimatedMinutes, 10);
+ assert.deepEqual(next.roster.map(t=>t.name), ["First","Third","Student"]);
+ assert.equal(next.rosterNeedsRefresh, false);
+});
 test("called and completed tickets update without private API reads", () => {
  const called = applyLiveSnapshot(data(), live({ states: [{ seq: 2, status: "called" }] }));
  assert.equal(called.mine.status, "called"); assert.equal(called.mine.position, 0);

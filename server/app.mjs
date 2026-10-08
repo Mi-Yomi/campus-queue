@@ -139,6 +139,7 @@ export function createApp(options = {}) {
     });
     app.use("/api/queues/:queueId/redeem", admissionLimit);
     app.use("/api/queues/:queueId/join", admissionLimit);
+    app.use("/api/queues/:queueId/retake", admissionLimit);
   }
   const visitor = (req) => {
     const token = req.get("X-Visitor-Token");
@@ -192,6 +193,12 @@ export function createApp(options = {}) {
       "",
       req.body?.grantId,
     );
+    res.json(store.snapshot(req.params.queueId, visitor(req)));
+  });
+  app.post("/api/queues/:queueId/retake", (req, res) => {
+    fields(req.body, ["ticketId", "generation"]);
+    store.retake(req.params.queueId, visitor(req), text(req.body.ticketId, "Талон", 80),
+      integer(req.body.generation, 1, 1_000_000, "Номер пары"));
     res.json(store.snapshot(req.params.queueId, visitor(req)));
   });
   app.post("/api/queues/:queueId/leave", (req, res) => {
@@ -279,6 +286,13 @@ export function createApp(options = {}) {
   );
   app.patch("/api/admin/queues/:queueId/settings", (req, res) => {
     store.updateSettings(req.params.queueId, settingsInput(req.body));
+    res.json(store.snapshot(req.params.queueId, undefined, true));
+  });
+  app.post("/api/admin/queues/:queueId/reorder", (req, res) => {
+    fields(req.body, ["ticketId", "beforeTicketId", "generation"]);
+    store.reorder(req.params.queueId, text(req.body.ticketId, "Талон", 80),
+      req.body.beforeTicketId === null ? null : text(req.body.beforeTicketId, "Место в очереди", 80),
+      integer(req.body.generation, 1, 1_000_000, "Номер пары"));
     res.json(store.snapshot(req.params.queueId, undefined, true));
   });
   app.post("/api/admin/queues/:queueId/next", (req, res) => {

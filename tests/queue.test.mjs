@@ -11,6 +11,116 @@ import { digest } from "../server/store.mjs";
 const password = "test-owner-password",
   passwordHash = hashPassword(password);
 const visitor = () => randomBytes(32).toString("hex");
+
+test("retakes append a new attempt, preserve history and remain idempotent after completion/cancellation", async t => {
+  const f = await fixture(t), student = visitor(), other = visitor();
+  const first = (await f.enroll("legacy", student)).body.mine;
+  await f.enroll("legacy", other);
+  await f.call("/admin/queues/legacy/next", { admin: f.owner, method: "POST" });
+  f.clock.value += 7 * 60_000;
+  await f.call("/admin/queues/legacy/next", { admin: f.owner, method: "POST", body: { currentTicketId: first.id } });
+  const options = { token: student, method: "POST", body: { ticketId: first.id, generation: 1 } };
+  const retries = await Promise.all(Array.from({ length: 3 }, () => f.call("/queues/legacy/retake", options)));
+  retries.forEach(r => assert.equal(r.status, 200, JSON.stringify(r.body)));
+  const second = retries[0].body.mine;
+  assert.equal(new Set(retries.map(r => r.body.mine.id)).size, 1);
+  assert.equal(second.number, "A-003"); assert.equal(second.attempt, 2);
+  assert.equal(second.name, first.name); assert.equal(second.retryOf, first.id);
+  assert.equal(second.ahead, 1); assert.equal(second.estimatedMinutes, 7);
+  assert.equal(retries[0].body.analytics.sampleCount, 1);
+  assert.equal((await f.call("/queues/legacy", { token: student })).body.mine.id, second.id);
+  assert.equal((await f.call("/me/tickets", { token: student })).body.tickets[0].id, second.id);
+  const current = (await f.call("/admin/queues/legacy", { admin: f.owner })).body.current;
+  await f.call("/admin/queues/legacy/next", { admin: f.owner, method: "POST", body: { currentTicketId: current.id } });
+  f.clock.value += 60_000;
+  await f.call("/admin/queues/legacy/next", { admin: f.owner, method: "POST", body: { currentTicketId: second.id } });
+  assert.equal((await f.call("/queues/legacy/retake", options)).body.stats.total, 3);
+  const thirdOptions = { ...options, body: { ticketId: second.id, generation: 1 } };
+  const third = await f.call("/queues/legacy/retake", thirdOptions);
+  assert.equal(third.body.mine.attempt, 3); assert.equal(third.body.mine.number, "A-004");
+  await f.call("/queues/legacy/leave", { token: student, method: "POST" });
+  const delayed = await f.call("/queues/legacy/retake", thirdOptions);
+  assert.equal(delayed.body.mine.status, "cancelled"); assert.equal(delayed.body.stats.total, 4);
+});
+
+test("retake requires the student's completed current ticket and respects pause, capacity, disabled teacher and end", async t => {
+  const f = await fixture(t), teacher = await f.teacher("retakes"), student = visitor();
+  const ticket = (await f.enroll(teacher.q, student)).body.mine;
+  const path = `/queues/${teacher.q}/retake`, body = { ticketId: ticket.id, generation: 1 };
+  const options = { token: student, method: "POST", body };
+  assert.equal((await f.call(path, { method: "POST", body })).status, 400);
+  assert.equal((await f.call(path, { ...options, token: visitor() })).status, 403);
+  assert.equal((await f.call(path, options)).status, 409);
+  await f.call(`/admin/queues/${teacher.q}/next`, { admin: teacher.token, method: "POST" });
+  assert.equal((await f.call(path, options)).status, 409);
+  await f.call(`/admin/queues/${teacher.q}/next`, { admin: teacher.token, method: "POST", body: { currentTicketId: ticket.id } });
+  const settings = (body) => f.call(`/admin/queues/${teacher.q}/settings`, { admin: teacher.token, method: "PATCH", body });
+  await settings({ status: "paused" });
+  assert.equal((await f.call(path, options)).status, 409);
+  await settings({ status: "open", maxQueue: 1 });
+  const secondStudent = visitor(); await f.enroll(teacher.q, secondStudent);
+  assert.equal((await f.call(path, options)).status, 409);
+  await f.call(`/queues/${teacher.q}/leave`, { token: secondStudent, method: "POST" });
+  for (const invalid of [{}, { ticketId: ticket.id }, { ...body, generation: 0 }, { ...body, name: "Override" }])
+    assert.equal((await f.call(path, { ...options, body: invalid })).status, 400);
+  assert.equal((await f.call(path, { ...options, body: { ...body, generation: 2 } })).status, 409);
+  assert.equal((await f.call("/queues/legacy/retake", options)).status, 403);
+  await f.call(`/admin/teachers/${teacher.user.id}`, { admin: f.owner, method: "PATCH", body: { active: false } });
+  assert.equal((await f.call(path, options)).status, 409);
+  await f.call(`/admin/teachers/${teacher.user.id}`, { admin: f.owner, method: "PATCH", body: { active: true } });
+  await f.call(`/admin/queues/${teacher.q}/reset`, { admin: f.owner, method: "POST", body: { generation: 1, confirmation: "НОВАЯ ПАРА" } });
+  assert.equal((await f.call(path, options)).status, 409);
+  await f.call(`/admin/queues/${teacher.q}/end`, { admin: f.owner, method: "POST", body: { generation: 2, confirmation: "ЗАВЕРШИТЬ" } });
+  assert.equal((await f.call(path, options)).status, 410);
+});
+
+test("teacher moves preserve ticket numbers, student positions, later joins and the next call across restart", async t => {
+  const path = temporary(t), f = await fixture(t, { databasePath: path });
+  const people = [visitor(), visitor(), visitor(), visitor()], tickets = [];
+  for (const token of people) tickets.push((await f.enroll("legacy", token)).body.mine);
+  await f.call("/admin/queues/legacy/next", { admin: f.owner, method: "POST" });
+  const moved = await f.call("/admin/queues/legacy/reorder", { admin: f.owner, method: "POST",
+    body: { ticketId: tickets[3].id, beforeTicketId: tickets[1].id, generation: 1 } });
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+  assert.equal(moved.body.current.id, tickets[0].id);
+  assert.deepEqual(moved.body.nextNumbers, ["A-004", "A-002", "A-003"]);
+  const third = (await f.call("/queues/legacy", { token: people[2] })).body;
+  assert.equal(third.mine.position, 3); assert.equal(third.mine.ahead, 3);
+  assert.deepEqual(third.roster.map(r => r.seq), [1, 4, 2, 3]);
+  assert.equal(third.mine.number, "A-003");
+  await f.enroll("legacy", visitor());
+  await f.call("/admin/queues/legacy/tickets", { admin: f.owner, method: "POST", body: { requestId: randomUUID(), name: "Manual", generation: 1 } });
+  await f.close();
+  const restarted = await fixture(t, { databasePath: path });
+  const state = (await restarted.call("/admin/queues/legacy", { admin: restarted.owner })).body;
+  assert.deepEqual(state.nextNumbers, ["A-004", "A-002", "A-003", "A-005", "A-006"]);
+  const next = await restarted.call("/admin/queues/legacy/next", { admin: restarted.owner, method: "POST", body: { currentTicketId: tickets[0].id } });
+  assert.equal(next.body.current.id, tickets[3].id);
+  assert.deepEqual(next.body.nextNumbers, ["A-002", "A-003", "A-005", "A-006"]);
+  await restarted.close();
+});
+
+test("moves are owner-scoped, only affect waiting students and reject stale targets without partial changes", async t => {
+  const f = await fixture(t), teacher = await f.teacher("move_teacher"), other = await f.teacher("other_move_teacher");
+  const tickets = [];
+  for (let i = 0; i < 3; i++) tickets.push((await f.enroll(teacher.q, visitor())).body.mine);
+  const path = `/admin/queues/${teacher.q}/reorder`, body = { ticketId: tickets[2].id, beforeTicketId: tickets[0].id, generation: 1 };
+  const options = { admin: teacher.token, method: "POST", body };
+  assert.equal((await f.call(path, { ...options, admin: undefined, token: visitor() })).status, 401);
+  assert.equal((await f.call(path, { ...options, admin: other.token })).status, 403);
+  assert.equal((await f.call(path, { ...options, body: { ...body, generation: 2 } })).status, 409);
+  for (const invalid of [{ ...body, beforeTicketId: 5 }, { ticketId: tickets[2].id, generation: 1 }, { ...body, ignored: 1 }])
+    assert.equal((await f.call(path, { ...options, body: invalid })).status, 400);
+  const wrongQueue = (await f.enroll(other.q, visitor())).body.mine.id;
+  assert.equal((await f.call(path, { ...options, body: { ...body, beforeTicketId: wrongQueue } })).status, 409);
+  await f.call(`/admin/queues/${teacher.q}/next`, { admin: teacher.token, method: "POST" });
+  assert.equal((await f.call(path, options)).status, 409);
+  assert.equal((await f.call(path, { ...options, body: { ...body, ticketId: tickets[0].id, beforeTicketId: null } })).status, 409);
+  const append = await f.call(path, { ...options, body: { ...body, ticketId: tickets[1].id, beforeTicketId: null } });
+  assert.equal(append.status, 200); assert.deepEqual(append.body.nextNumbers, ["A-003", "A-002"]);
+  await f.call(`/admin/queues/${teacher.q}/end`, { admin: teacher.token, method: "POST", body: { generation: 1, confirmation: "ЗАВЕРШИТЬ" } });
+  assert.equal((await f.call(path, options)).status, 410);
+});
 test("advance completes the displayed ticket, calls FIFO once and measures actual service time", async (t) => {
   const f = await fixture(t);
   const students = [visitor(), visitor(), visitor()];
@@ -473,7 +583,11 @@ test("existing databases gain a one-minute default and keep a teacher interval a
   const ticket = (await f.enroll("legacy", token)).body.mine;
   await f.close();
   const db = new DatabaseSync(path);
-  db.exec("ALTER TABLE queues DROP COLUMN qrIntervalSeconds; PRAGMA user_version=4;");
+  db.exec(`DROP INDEX idx_waiting_order; DROP INDEX idx_ticket_retry;
+    ALTER TABLE queue_tickets DROP COLUMN queueOrder;
+    ALTER TABLE queue_tickets DROP COLUMN retryOf;
+    ALTER TABLE queue_tickets DROP COLUMN attempt;
+    ALTER TABLE queues DROP COLUMN qrIntervalSeconds; PRAGMA user_version=4;`);
   db.close();
   const upgraded = await fixture(t, { databasePath: path });
   const state = (await upgraded.call("/queues/legacy", { token })).body;

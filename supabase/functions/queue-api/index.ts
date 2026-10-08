@@ -133,6 +133,15 @@ Deno.serve(async (req: Request) => {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(String(body.requestId)))
         throw new ApiError(400, "Некорректный запрос записи.");
       integer(body.generation, 1, 1_000_000, "Номер пары");
+    } else if (/^\/admin\/queues\/[^/]+\/reorder$/.test(path) && req.method === "POST") {
+      fields(body, ["ticketId", "beforeTicketId", "generation"]);
+      body.ticketId = text(body.ticketId, "Талон", 80);
+      if (body.beforeTicketId !== null) body.beforeTicketId = text(body.beforeTicketId, "Место в очереди", 80);
+      integer(body.generation, 1, 1_000_000, "Номер пары");
+    } else if (/^\/queues\/[^/]+\/retake$/.test(path) && req.method === "POST") {
+      fields(body, ["ticketId", "generation"]);
+      body.ticketId = text(body.ticketId, "Талон", 80);
+      integer(body.generation, 1, 1_000_000, "Номер пары");
     } else if (/^\/queues\/[^/]+\/join$/.test(path) && req.method === "POST") {
       fields(body, ["name", "studentGroup", "grantId"]);
       body.name = text(body.name, "Имя", 60);

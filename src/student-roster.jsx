@@ -14,8 +14,9 @@ function RosterRow({ ticket, own = false }) {
 
 export function StudentRoster({ roster, mine, refreshing }) {
   if (!roster) return null;
-  const before = roster.filter(t => t.seq !== mine.seq && (t.status === "called" || t.seq < mine.seq));
-  const after = roster.filter(t => t.seq > mine.seq && t.status === "waiting");
+  const ownIndex = roster.findIndex(t => t.seq === mine.seq);
+  const before = ownIndex < 0 ? [] : roster.slice(0, ownIndex);
+  const after = ownIndex < 0 ? [] : roster.slice(ownIndex + 1);
   const waiting = mine.status === "waiting";
   return <section className={`student-roster ${waiting ? "student-roster-sleeping" : ""}`} aria-labelledby="student-roster-heading" aria-busy={!!refreshing}>
     {waiting && <img className="student-roster-mascot" src={studentMedia("ritm-sleeping.webp")}

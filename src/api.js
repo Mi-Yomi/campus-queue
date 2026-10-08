@@ -37,7 +37,7 @@ export async function request(
   { method = "GET", body, admin = false, signal, displayToken } = {},
 ) {
   if (
-    (path.endsWith("/join") || path.endsWith("/redeem")) &&
+    (path.endsWith("/join") || path.endsWith("/redeem") || path.endsWith("/retake")) &&
     !visitorStorageAvailable()
   )
     throw new Error(

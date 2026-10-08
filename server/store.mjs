@@ -126,6 +126,19 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       db.exec("ALTER TABLE queues ADD COLUMN qrIntervalSeconds INTEGER NOT NULL DEFAULT 60 CHECK(qrIntervalSeconds BETWEEN 60 AND 600 AND qrIntervalSeconds % 60 = 0); PRAGMA user_version=5;");
     });
   }
+  if (schema < 6) {
+    tx(() => {
+      db.exec(`
+        ALTER TABLE queue_tickets ADD COLUMN queueOrder INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE queue_tickets ADD COLUMN retryOf TEXT REFERENCES queue_tickets(id);
+        ALTER TABLE queue_tickets ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1 CHECK(attempt>0);
+        UPDATE queue_tickets SET queueOrder=seq;
+        CREATE UNIQUE INDEX idx_ticket_retry ON queue_tickets(retryOf) WHERE retryOf IS NOT NULL;
+        CREATE INDEX idx_waiting_order ON queue_tickets(queueId,generation,status,queueOrder,seq);
+        PRAGMA user_version=6;
+      `);
+    });
+  }
   const secret = db
     .prepare("SELECT value FROM app_meta WHERE key='invite_secret'")
     .get().value;
@@ -235,7 +248,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     const q = queue(id);
     const tickets = db
       .prepare(
-        "SELECT * FROM queue_tickets WHERE queueId=? AND generation=? ORDER BY seq",
+        "SELECT * FROM queue_tickets WHERE queueId=? AND generation=? ORDER BY CASE WHEN status='called' THEN 0 ELSE 1 END,queueOrder,seq",
       )
       .all(id, q.generation);
     const waiting = tickets.filter((t) => t.status === "waiting"),
@@ -519,7 +532,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
         number: `A-${String(seq).padStart(3, "0")}`,
       };
       db.prepare(
-        "INSERT INTO queue_tickets VALUES(?,?,?,?,?,?,?,?,'waiting',?,NULL,NULL)",
+        "INSERT INTO queue_tickets(id,queueId,generation,seq,number,visitorHash,name,studentGroup,status,createdAt,queueOrder) VALUES(?,?,?,?,?,?,?,?,'waiting',?,?)",
       ).run(
         ticket.id,
         id,
@@ -530,6 +543,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
         name,
         studentGroup,
         stamp(),
+        nextQueueOrder(id, q.generation),
       );
       db.prepare(
         "UPDATE admission_grants SET consumedTicketId=? WHERE id=?",
@@ -555,9 +569,50 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
       if (count >= q.maxQueue) fail(409, "Очередь заполнена. Попробуйте, когда освободится место.");
       const seq = db.prepare("SELECT COALESCE(MAX(seq),0)+1 AS n FROM queue_tickets WHERE queueId=? AND generation=?").get(id, generation).n;
       // This ticket has no browser owner. A random, unshared capability prevents claiming it.
-      db.prepare("INSERT INTO queue_tickets VALUES(?,?,?,?,?,?,?,?,'waiting',?,NULL,NULL)")
-        .run(ticketId, id, generation, seq, `A-${String(seq).padStart(3, "0")}`, digest(newToken()), name, "", stamp());
+      db.prepare("INSERT INTO queue_tickets(id,queueId,generation,seq,number,visitorHash,name,studentGroup,status,createdAt,queueOrder) VALUES(?,?,?,?,?,?,?,?,'waiting',?,?)")
+        .run(ticketId, id, generation, seq, `A-${String(seq).padStart(3, "0")}`, digest(newToken()), name, "", stamp(), nextQueueOrder(id, generation));
       return clean(db.prepare("SELECT * FROM queue_tickets WHERE id=?").get(ticketId));
+    });
+  }
+  function nextQueueOrder(id, generation) {
+    return db.prepare("SELECT COALESCE(MAX(queueOrder),0)+1 AS n FROM queue_tickets WHERE queueId=? AND generation=?").get(id, generation).n;
+  }
+  function retake(id, token, ticketId, generation) {
+    return tx(() => {
+      const q = queue(id), hash = digest(token);
+      if (q.endedAt) fail(410, "Очередь завершена.");
+      if (q.generation !== generation) fail(409, "Началась новая пара. Нужен свежий QR или ссылка.");
+      const previous = db.prepare("SELECT * FROM queue_tickets WHERE id=? AND queueId=? AND generation=? AND visitorHash=?")
+        .get(ticketId, id, generation, hash);
+      if (!previous) fail(403, "Для пересдачи нужен ваш талон этой пары.");
+      if (previous.status !== "done") fail(409, "Записаться на пересдачу можно после завершения приёма.");
+      // Retry the same action safely even after the new attempt has finished or been cancelled.
+      if (db.prepare("SELECT id FROM queue_tickets WHERE retryOf=?").get(ticketId)) return;
+      if (db.prepare("SELECT id FROM queue_tickets WHERE queueId=? AND visitorHash=? AND status IN ('waiting','called')").get(id, hash)) return;
+      if (db.prepare("SELECT id FROM queue_tickets WHERE queueId=? AND generation=? AND visitorHash=? AND seq>?").get(id, generation, hash, previous.seq))
+        fail(409, "У вас уже есть более новый талон. Обновите страницу.");
+      requireOpen(q);
+      const count = db.prepare("SELECT COUNT(*) AS n FROM queue_tickets WHERE queueId=? AND generation=? AND status IN ('waiting','called')").get(id, generation).n;
+      if (count >= q.maxQueue) fail(409, "Очередь заполнена. Попробуйте, когда освободится место.");
+      const seq = db.prepare("SELECT COALESCE(MAX(seq),0)+1 AS n FROM queue_tickets WHERE queueId=? AND generation=?").get(id, generation).n;
+      db.prepare("INSERT INTO queue_tickets(id,queueId,generation,seq,number,visitorHash,name,studentGroup,status,createdAt,queueOrder,retryOf,attempt) VALUES(?,?,?,?,?,?,?,?,'waiting',?,?,?,?)")
+        .run(randomUUID(), id, generation, seq, `A-${String(seq).padStart(3, "0")}`, hash, previous.name, "", stamp(), nextQueueOrder(id, generation), ticketId, previous.attempt + 1);
+    });
+  }
+  function reorder(id, ticketId, beforeTicketId, generation) {
+    return tx(() => {
+      const q = queue(id);
+      if (q.endedAt) fail(410, "Очередь завершена.");
+      if (q.generation !== generation) fail(409, "Пара изменилась. Обновите очередь.");
+      const ids = db.prepare("SELECT id FROM queue_tickets WHERE queueId=? AND generation=? AND status='waiting' ORDER BY queueOrder,seq")
+        .all(id, generation).map(t => t.id);
+      if (!ids.includes(ticketId) || (beforeTicketId !== null && !ids.includes(beforeTicketId)))
+        fail(409, "Список изменился: студент уже не ожидает. Обновите очередь.");
+      if (ticketId === beforeTicketId) return;
+      const reordered = ids.filter(value => value !== ticketId);
+      reordered.splice(beforeTicketId === null ? reordered.length : reordered.indexOf(beforeTicketId), 0, ticketId);
+      const update = db.prepare("UPDATE queue_tickets SET queueOrder=? WHERE id=?");
+      reordered.forEach((value, index) => update.run(index + 1, value));
     });
   }
   function cancel(id, token) {
@@ -592,7 +647,7 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
         fail(409, "Сначала завершите приём текущего студента.");
       const row = db
         .prepare(
-          "SELECT id FROM queue_tickets WHERE queueId=? AND generation=? AND status='waiting' ORDER BY seq LIMIT 1",
+          "SELECT id FROM queue_tickets WHERE queueId=? AND generation=? AND status='waiting' ORDER BY queueOrder,seq LIMIT 1",
         )
         .get(id, q.generation);
       if (!row) {
@@ -726,6 +781,8 @@ export function createStore(filename, { passwordHash, now = Date.now } = {}) {
     redeem,
     join,
     addManual,
+    retake,
+    reorder,
     cancel,
     next,
     finish,

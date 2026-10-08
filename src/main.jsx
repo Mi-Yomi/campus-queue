@@ -29,7 +29,7 @@ import { queueBase } from "./queue-links.mjs";
 import { MinuteIntervalField } from "./minute-interval-field";
 import { InviteLinkDialog } from "./invite-link";
 import { studentDraft, savedStudentName, rememberStudentName } from "./student-profile.mjs";
-import { estimateMinutes, durationLabel, serviceSeconds } from "./queue-analytics.mjs";
+import { estimateMinutes, durationLabel } from "./queue-analytics.mjs";
 import {
   Brand,
   Button,
@@ -64,6 +64,7 @@ import { useStudentSound, StudentSound } from "./student-sound";
 import { StudentRoster } from "./student-roster";
 import { ConnectionNotice } from "./connection-notice";
 import { ManualEnrollment } from "./manual-enrollment";
+import { TeacherQueue } from "./teacher-queue";
 
 function savedBase() {
   if (cloudEnabled) return queueBase(location.href, null, true);
@@ -399,6 +400,7 @@ function Visitor({ queueId, invite, notify }) {
     return () => { document.title = "РИТМ — очередь на пару"; };
   }, [called, completed]);
   async function act(path, body) {
+    if (busy) return;
     setBusy(true);
     setActionError("");
     try {
@@ -408,6 +410,7 @@ function Visitor({ queueId, invite, notify }) {
       notify(
         path === "/join"
           ? "Вы записаны. Талон сохранён."
+          : path === "/retake" ? "Вы записаны на пересдачу в конец очереди."
           : "Вы вышли из очереди.",
       );
     } catch (e) {
@@ -428,11 +431,17 @@ function Visitor({ queueId, invite, notify }) {
       <ConnectionNotice {...resource} retry={refresh} ticketSaved={!!active} />
       {!data ? (
         <main className="student-empty"><LoaderCircle className="spin" size={32} /><h1>Загружаем очередь…</h1></main>
-      ) : completed ? <WorkDone settings={data.settings} ticket={mine} /> : ended ? <QueueEnded settings={data.settings} /> : active ? (
+      ) : completed ? <WorkDone settings={data.settings} ticket={mine}
+        busy={busy} error={actionError} disabled={!!error || data.settings.status !== "open" || !data.settings.teacherActive}
+        onRetake={() => {
+          sound.control.enableOnJoin();
+          act("/retake", { ticketId: mine.id, generation: mine.generation });
+        }} /> : ended ? <QueueEnded settings={data.settings} /> : active ? (
         <main className="student-ticket-screen">
           <section className="student-receipt" role={called ? "alert" : undefined} aria-live={called ? "assertive" : "off"}>
             <p className="student-ticket-label">{called ? "Вас вызывают" : "Ваш номер"}</p>
             <div className="student-ticket-number">{mine.number}</div>
+            {mine.attempt > 1 && <span className="retake-badge">Пересдача · попытка {mine.attempt}</span>}
             <h1>{called ? "Ваша очередь!" : data.current ? "Ожидайте, сейчас идёт приём" : "Ожидайте вызова преподавателя"}</h1>
             {called ? <p className="student-call-direction">Подходите к преподавателю</p>
               : <p className="student-current-person">{data.current ? `Сейчас принимают: ${data.current.number}` : "Преподаватель скоро вызовет следующего"}</p>}
@@ -1018,44 +1027,11 @@ function Admin({ notify, onLogout }) {
                       </button>
                     </div>
                     {tickets.length ? (
-                      <div className="table-wrap">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>Номер</th>
-                              <th>Студент</th>
-                              <th>Записался</th>
-                              <th>Статус</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {tickets.map((t) => (
-                              <tr
-                                key={t.id}
-                                className={
-                                  t.status === "called" ? "called-row" : ""
-                                }
-                              >
-                                <td>
-                                  <span className="number-pill">
-                                    {t.number}
-                                  </span>
-                                </td>
-                                <td>
-                                  <strong>{t.name}</strong>
-                                  {t.status === "done" && <span className="student-group">Приём: {durationLabel(serviceSeconds(t))}</span>}
-                                </td>
-                                <td className="muted">{time(t.createdAt)}</td>
-                                <td>
-                                  <span className={`ticket-status ${t.status}`}>
-                                    {statusNames[t.status]}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <TeacherQueue key={`${qid}-${data.settings.generation}-${historyView}`}
+                        tickets={tickets} history={historyView} disabled={disabled}
+                        onMove={(ticketId, beforeTicketId) => act("/reorder", {
+                          ticketId, beforeTicketId, generation: data.settings.generation,
+                        }, "Порядок вызова сохранён.")} />
                     ) : (
                       <Empty
                         title={
